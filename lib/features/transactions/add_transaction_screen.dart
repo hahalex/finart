@@ -1,24 +1,32 @@
 import 'package:flutter/material.dart';
-import '../categories/mock_categories.dart';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../common/providers/navigation_provider.dart';
+import '../transactions/providers/transactions_notifier.dart';
+import '../transactions/providers/categories_provider.dart';
+import '../../common/models/category_model.dart';
 import '../../common/utils/app_theme.dart';
 
 /// Экран добавления дохода или расхода
-class AddTransactionScreen extends StatefulWidget {
+class AddTransactionScreen extends ConsumerStatefulWidget {
   const AddTransactionScreen({super.key});
 
   @override
-  State<AddTransactionScreen> createState() => _AddTransactionScreenState();
+  ConsumerState<AddTransactionScreen> createState() =>
+      _AddTransactionScreenState();
 }
 
-class _AddTransactionScreenState extends State<AddTransactionScreen> {
+class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   bool isExpense = true;
-  Category? selectedCategory;
+  CategoryModel? selectedCategory;
   final TextEditingController amountController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
-    final categories = mockCategories
+    final categories = ref
+        .watch(categoriesProvider)
         .where((c) => c.isExpense == isExpense)
         .toList();
 
@@ -125,8 +133,29 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
             /// Кнопка сохранения
             ElevatedButton(
               onPressed: () {
-                // Пока ничего не сохраняем — логика будет позже
-                Navigator.pop(context);
+                if (selectedCategory == null) return;
+
+                final amount = double.tryParse(amountController.text);
+                if (amount == null || amount <= 0) return;
+
+                ref
+                    .read(transactionsProvider.notifier)
+                    .addTransaction(
+                      amount: amount,
+                      categoryId: selectedCategory!.id,
+                      isExpense: selectedCategory!.isExpense,
+                      description: descriptionController.text.isEmpty
+                          ? null
+                          : descriptionController.text,
+                    );
+
+                // Возвращаемся на вкладку "Записи"
+                ref.read(bottomNavIndexProvider.notifier).state = 0;
+
+                // Очищаем поля (на будущее)
+                amountController.clear();
+                descriptionController.clear();
+                selectedCategory = null;
               },
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 56),

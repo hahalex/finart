@@ -34,6 +34,8 @@ dependencies:
   # управление состоянием (Riverpod — современный и удобный)
   flutter_riverpod: ^2.5.1
 
+  uuid: ^4.4.0
+
   # HTTP клиент для API
   dio: ^5.4.0
 

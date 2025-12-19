@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../common/providers/navigation_provider.dart';
 import '../../features/transactions/transactions_screen.dart';
 import '../../features/analytics/charts_screen.dart';
 import '../../features/analytics/reports_screen.dart';
@@ -7,18 +9,11 @@ import '../../features/profile/profile_screen.dart';
 import '../../features/transactions/add_transaction_screen.dart';
 
 /// Главный экран с нижней навигацией
-class MainNavigation extends StatefulWidget {
+class MainNavigation extends ConsumerWidget {
   const MainNavigation({super.key});
 
-  @override
-  State<MainNavigation> createState() => _MainNavigationState();
-}
-
-class _MainNavigationState extends State<MainNavigation> {
-  int _currentIndex = 0;
-
   /// Список экранов для нижнего меню
-  final List<Widget> _screens = const [
+  static const List<Widget> _screens = [
     TransactionsScreen(),
     ChartsScreen(),
     AddTransactionScreen(),
@@ -27,19 +22,18 @@ class _MainNavigationState extends State<MainNavigation> {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentIndex = ref.watch(bottomNavIndexProvider);
+
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: _screens[currentIndex],
 
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: currentIndex,
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          ref.read(bottomNavIndexProvider.notifier).state = index;
         },
-
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.list_alt), label: 'Записи'),
           BottomNavigationBarItem(
