@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'common/widgets/main_navigation.dart';
+import 'common/utils/app_theme.dart';
 
 /// Точка входа в приложение.
 /// ProviderScope — включает систему Riverpod.
@@ -24,22 +26,11 @@ class FinArtApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
 
       /// Светлая и тёмная темы — пригодятся в будущем
-      theme: ThemeData(
-        brightness: Brightness.light,
-        primarySwatch: Colors.blue,
-        useMaterial3: true,
-      ),
+      theme: AppTheme.lightTheme,
       darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
 
       /// Стартовый экран — временная заглушка, пока нет навигации
-      home: const Scaffold(
-        body: Center(
-          child: Text(
-            'FinArt MVP — стартовый экран',
-            style: TextStyle(fontSize: 20),
-          ),
-        ),
-      ),
+      home: const MainNavigation(),
     );
   }
 }
