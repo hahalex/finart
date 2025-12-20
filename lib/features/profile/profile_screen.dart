@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'mock_profile.dart';
+import 'providers/user_provider.dart';
+import 'domain/user_model.dart';
 import 'widgets/profile_action_tile.dart';
 
-/// Экран "Профиль"
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = mockUserProfile;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userProvider);
 
     return SafeArea(
       child: ListView(
@@ -25,7 +26,11 @@ class ProfileScreen extends StatelessWidget {
               const SizedBox(height: 12),
               Text(user.name, style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 4),
-              Text(user.email, style: Theme.of(context).textTheme.bodyMedium),
+              if (user.email?.isNotEmpty == true)
+                Text(
+                  user.email!,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
             ],
           ),
 
@@ -35,7 +40,7 @@ class ProfileScreen extends StatelessWidget {
           ProfileActionTile(
             icon: Icons.edit,
             title: 'Изменить профиль',
-            onTap: () {},
+            onTap: () => _showEditDialog(context, ref, user),
           ),
           ProfileActionTile(
             icon: Icons.lock,
@@ -54,6 +59,51 @@ class ProfileScreen extends StatelessWidget {
           ProfileActionTile(icon: Icons.logout, title: 'Выйти', onTap: () {}),
         ],
       ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, WidgetRef ref, UserModel user) {
+    final nameController = TextEditingController(text: user.name);
+    final emailController = TextEditingController(text: user.email);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Изменить профиль'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Имя'),
+              ),
+              TextField(
+                controller: emailController,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                ref
+                    .read(userProvider.notifier)
+                    .updateProfile(
+                      name: nameController.text,
+                      email: emailController.text,
+                    );
+                Navigator.pop(context);
+              },
+              child: const Text('Сохранить'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
