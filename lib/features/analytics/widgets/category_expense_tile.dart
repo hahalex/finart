@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
-import '../mock_analytics.dart';
+import '../domain/analytics_models.dart';
 
 /// Элемент списка расходов по категории
 class CategoryExpenseTile extends StatelessWidget {
-  final CategoryExpense expense;
+  final CategoryExpenseData expense;
+  final String categoryName;
 
-  const CategoryExpenseTile({super.key, required this.expense});
+  const CategoryExpenseTile({
+    super.key,
+    required this.expense,
+    required this.categoryName,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: Text(expense.category),
+      title: Text(categoryName),
       trailing: Text(
-        '${expense.amount.toStringAsFixed(0)} ₽',
+        '${expense.total.toStringAsFixed(0)} ₽',
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
     );

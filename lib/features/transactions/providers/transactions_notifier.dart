@@ -2,45 +2,48 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../common/models/transaction_model.dart';
+import '../../../common/providers/transactions_repository_provider.dart';
 
-/// Провайдер списка финансовых операций
+/// Provider операций
 final transactionsProvider =
-    StateNotifierProvider<TransactionsNotifier, List<TransactionModel>>(
-      (ref) => TransactionsNotifier(),
-    );
+    StateNotifierProvider<TransactionsNotifier, List<TransactionModel>>((ref) {
+      return TransactionsNotifier(ref);
+    });
 
-/// Управляет списком операций (доходы и расходы)
 class TransactionsNotifier extends StateNotifier<List<TransactionModel>> {
-  TransactionsNotifier() : super([]);
+  final Ref ref;
 
-  final _uuid = const Uuid();
+  TransactionsNotifier(this.ref) : super([]) {
+    _loadTransactions();
+  }
 
-  /// Добавить новую операцию
-  void addTransaction({
+  /// Загрузка операций из БД
+  Future<void> _loadTransactions() async {
+    final repo = ref.read(transactionsRepositoryProvider);
+    final transactions = await repo.getAllTransactions();
+    state = transactions;
+  }
+
+  /// Добавление операции
+  Future<void> addTransaction({
     required double amount,
     required String categoryId,
     required bool isExpense,
     String? description,
-  }) {
+  }) async {
     final transaction = TransactionModel(
-      id: _uuid.v4(),
+      id: const Uuid().v4(),
       amount: amount,
       categoryId: categoryId,
-      isExpense: isExpense,
       createdAt: DateTime.now(),
+      isExpense: isExpense,
       description: description,
     );
 
+    final repo = ref.read(transactionsRepositoryProvider);
+    await repo.insertTransaction(transaction);
+
+    // Обновляем состояние
     state = [...state, transaction];
-  }
-
-  /// Удалить операцию (на будущее)
-  void removeTransaction(String id) {
-    state = state.where((t) => t.id != id).toList();
-  }
-
-  /// Очистить все операции (debug)
-  void clear() {
-    state = [];
   }
 }

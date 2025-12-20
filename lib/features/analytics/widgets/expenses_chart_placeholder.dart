@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
-import '../mock_analytics.dart';
+import '../domain/analytics_models.dart';
 
-/// Заглушка графика расходов
-/// Позже здесь будет fl_chart
+/// Временный график расходов по месяцам
 class ExpensesChartPlaceholder extends StatelessWidget {
-  const ExpensesChartPlaceholder({super.key});
+  final List<MonthlyExpenseData> data;
+
+  const ExpensesChartPlaceholder({super.key, required this.data});
 
   @override
   Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return const SizedBox(
+        height: 220,
+        child: Center(child: Text('Нет данных')),
+      );
+    }
+
+    final max = data.map((e) => e.total).reduce((a, b) => a > b ? a : b);
+
     return Container(
       height: 220,
       padding: const EdgeInsets.all(16),
@@ -17,19 +27,15 @@ class ExpensesChartPlaceholder extends StatelessWidget {
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
-        children: mockMonthlyExpenses.map((data) {
-          final max = mockMonthlyExpenses
-              .map((e) => e.amount)
-              .reduce((a, b) => a > b ? a : b);
-
-          final heightFactor = data.amount / max;
+        children: data.map((item) {
+          final heightFactor = item.total / max;
 
           return Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 Container(
-                  height: 120 * heightFactor,
+                  height: (120 * heightFactor).toDouble(),
                   width: 14,
                   decoration: BoxDecoration(
                     color: Colors.blue,
@@ -37,7 +43,10 @@ class ExpensesChartPlaceholder extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(data.month, style: const TextStyle(fontSize: 12)),
+                Text(
+                  '${item.month}.${item.year}',
+                  style: const TextStyle(fontSize: 12),
+                ),
               ],
             ),
           );

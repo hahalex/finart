@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'common/widgets/main_navigation.dart';
 import 'common/utils/app_theme.dart';
+import 'common/widgets/app_initializer.dart';
 
 /// Точка входа в приложение.
 /// ProviderScope — включает систему Riverpod.
@@ -12,7 +12,7 @@ void main() async {
 
   // Здесь позже мы инициализируем Hive (локальную БД), SharedPreferences и т.п.
 
-  runApp(const ProviderScope(child: FinArtApp()));
+  runApp(ProviderScope(observers: [], child: const FinArtApp()));
 }
 
 /// Основной виджет приложения.
@@ -31,7 +31,7 @@ class FinArtApp extends StatelessWidget {
       darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
 
       /// Стартовый экран — временная заглушка, пока нет навигации
-      home: const MainNavigation(),
+      home: const AppInitializer(),
     );
   }
 }
