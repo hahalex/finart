@@ -3,20 +3,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'common/utils/app_theme.dart';
 import 'common/widgets/app_initializer.dart';
+import 'common/database/app_database.dart';
+import 'common/database/test_planned_payments.dart';
 
-/// Точка входа в приложение.
-/// ProviderScope — включает систему Riverpod.
-/// Все комментарии — на русском, как и просил.
+// 3. Создаём экземпляр базы для тестов (только для отладки!)
+final _testDb = AppDatabase();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Здесь позже мы инициализируем Hive (локальную БД), SharedPreferences и т.п.
+  // 🔧 ОТЛАДКА: тест миграции
+  // await _runDatabaseTest();
 
   runApp(ProviderScope(observers: [], child: const FinArtApp()));
 }
 
-/// Основной виджет приложения.
-/// Здесь мы задаём тему и маршрутизацию.
+/// Временная функция для тестирования БД вне виджетов
+Future<void> _runDatabaseTest() async {
+  try {
+    await testPlannedPayments(_testDb);
+  } catch (e) {
+    print('❌ Тест провален: $e');
+  }
+  // После теста можно закрыть базу, если нужно:
+  await _testDb.close();
+}
+
 class FinArtApp extends StatelessWidget {
   const FinArtApp({super.key});
 
@@ -25,12 +37,8 @@ class FinArtApp extends StatelessWidget {
     return MaterialApp(
       title: 'FinArt',
       debugShowCheckedModeBanner: false,
-
-      /// Светлая и тёмная темы — пригодятся в будущем
       theme: AppTheme.lightTheme,
       darkTheme: ThemeData(brightness: Brightness.dark, useMaterial3: true),
-
-      /// Стартовый экран — временная заглушка, пока нет навигации
       home: const AppInitializer(),
     );
   }

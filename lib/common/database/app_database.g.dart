@@ -1011,6 +1011,641 @@ class UserTableCompanion extends UpdateCompanion<UserTableData> {
   }
 }
 
+class $PlannedPaymentsTableTable extends PlannedPaymentsTable
+    with TableInfo<$PlannedPaymentsTableTable, PlannedPaymentsTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PlannedPaymentsTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
+    'category_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isExpenseMeta = const VerificationMeta(
+    'isExpense',
+  );
+  @override
+  late final GeneratedColumn<bool> isExpense = GeneratedColumn<bool>(
+    'is_expense',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_expense" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _startDateMeta = const VerificationMeta(
+    'startDate',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startDate = GeneratedColumn<DateTime>(
+    'start_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _recurrenceMeta = const VerificationMeta(
+    'recurrence',
+  );
+  @override
+  late final GeneratedColumn<String> recurrence = GeneratedColumn<String>(
+    'recurrence',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    userId,
+    title,
+    amount,
+    categoryId,
+    isExpense,
+    startDate,
+    recurrence,
+    isActive,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'planned_payments_table';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PlannedPaymentsTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryIdMeta);
+    }
+    if (data.containsKey('is_expense')) {
+      context.handle(
+        _isExpenseMeta,
+        isExpense.isAcceptableOrUnknown(data['is_expense']!, _isExpenseMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_isExpenseMeta);
+    }
+    if (data.containsKey('start_date')) {
+      context.handle(
+        _startDateMeta,
+        startDate.isAcceptableOrUnknown(data['start_date']!, _startDateMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startDateMeta);
+    }
+    if (data.containsKey('recurrence')) {
+      context.handle(
+        _recurrenceMeta,
+        recurrence.isAcceptableOrUnknown(data['recurrence']!, _recurrenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_recurrenceMeta);
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  PlannedPaymentsTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PlannedPaymentsTableData(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      ),
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_id'],
+      )!,
+      isExpense: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_expense'],
+      )!,
+      startDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}start_date'],
+      )!,
+      recurrence: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recurrence'],
+      )!,
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PlannedPaymentsTableTable createAlias(String alias) {
+    return $PlannedPaymentsTableTable(attachedDatabase, alias);
+  }
+}
+
+class PlannedPaymentsTableData extends DataClass
+    implements Insertable<PlannedPaymentsTableData> {
+  /// Уникальный ID (текстовый, как в других таблицах)
+  final String id;
+
+  /// ID пользователя (для будущей авторизации)
+  final String? userId;
+
+  /// Название платежа (например, "Подписка Яндекс.Плюс")
+  final String title;
+
+  /// Сумма
+  final double amount;
+
+  /// ID категории (ссылка на CategoriesTable)
+  final String categoryId;
+
+  /// Тип: true = расход, false = доход (как в TransactionsTable)
+  final bool isExpense;
+
+  /// Дата первого/следующего платежа
+  final DateTime startDate;
+
+  /// Периодичность: 'none', 'daily', 'weekly', 'monthly', 'yearly'
+  final String recurrence;
+
+  /// Активен ли платёж (можно "выключить", не удаляя)
+  final bool isActive;
+
+  /// Дата создания записи
+  final DateTime createdAt;
+  const PlannedPaymentsTableData({
+    required this.id,
+    this.userId,
+    required this.title,
+    required this.amount,
+    required this.categoryId,
+    required this.isExpense,
+    required this.startDate,
+    required this.recurrence,
+    required this.isActive,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    if (!nullToAbsent || userId != null) {
+      map['user_id'] = Variable<String>(userId);
+    }
+    map['title'] = Variable<String>(title);
+    map['amount'] = Variable<double>(amount);
+    map['category_id'] = Variable<String>(categoryId);
+    map['is_expense'] = Variable<bool>(isExpense);
+    map['start_date'] = Variable<DateTime>(startDate);
+    map['recurrence'] = Variable<String>(recurrence);
+    map['is_active'] = Variable<bool>(isActive);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  PlannedPaymentsTableCompanion toCompanion(bool nullToAbsent) {
+    return PlannedPaymentsTableCompanion(
+      id: Value(id),
+      userId: userId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(userId),
+      title: Value(title),
+      amount: Value(amount),
+      categoryId: Value(categoryId),
+      isExpense: Value(isExpense),
+      startDate: Value(startDate),
+      recurrence: Value(recurrence),
+      isActive: Value(isActive),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory PlannedPaymentsTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PlannedPaymentsTableData(
+      id: serializer.fromJson<String>(json['id']),
+      userId: serializer.fromJson<String?>(json['userId']),
+      title: serializer.fromJson<String>(json['title']),
+      amount: serializer.fromJson<double>(json['amount']),
+      categoryId: serializer.fromJson<String>(json['categoryId']),
+      isExpense: serializer.fromJson<bool>(json['isExpense']),
+      startDate: serializer.fromJson<DateTime>(json['startDate']),
+      recurrence: serializer.fromJson<String>(json['recurrence']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'userId': serializer.toJson<String?>(userId),
+      'title': serializer.toJson<String>(title),
+      'amount': serializer.toJson<double>(amount),
+      'categoryId': serializer.toJson<String>(categoryId),
+      'isExpense': serializer.toJson<bool>(isExpense),
+      'startDate': serializer.toJson<DateTime>(startDate),
+      'recurrence': serializer.toJson<String>(recurrence),
+      'isActive': serializer.toJson<bool>(isActive),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  PlannedPaymentsTableData copyWith({
+    String? id,
+    Value<String?> userId = const Value.absent(),
+    String? title,
+    double? amount,
+    String? categoryId,
+    bool? isExpense,
+    DateTime? startDate,
+    String? recurrence,
+    bool? isActive,
+    DateTime? createdAt,
+  }) => PlannedPaymentsTableData(
+    id: id ?? this.id,
+    userId: userId.present ? userId.value : this.userId,
+    title: title ?? this.title,
+    amount: amount ?? this.amount,
+    categoryId: categoryId ?? this.categoryId,
+    isExpense: isExpense ?? this.isExpense,
+    startDate: startDate ?? this.startDate,
+    recurrence: recurrence ?? this.recurrence,
+    isActive: isActive ?? this.isActive,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  PlannedPaymentsTableData copyWithCompanion(
+    PlannedPaymentsTableCompanion data,
+  ) {
+    return PlannedPaymentsTableData(
+      id: data.id.present ? data.id.value : this.id,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      title: data.title.present ? data.title.value : this.title,
+      amount: data.amount.present ? data.amount.value : this.amount,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      isExpense: data.isExpense.present ? data.isExpense.value : this.isExpense,
+      startDate: data.startDate.present ? data.startDate.value : this.startDate,
+      recurrence: data.recurrence.present
+          ? data.recurrence.value
+          : this.recurrence,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlannedPaymentsTableData(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('title: $title, ')
+          ..write('amount: $amount, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('isExpense: $isExpense, ')
+          ..write('startDate: $startDate, ')
+          ..write('recurrence: $recurrence, ')
+          ..write('isActive: $isActive, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    userId,
+    title,
+    amount,
+    categoryId,
+    isExpense,
+    startDate,
+    recurrence,
+    isActive,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PlannedPaymentsTableData &&
+          other.id == this.id &&
+          other.userId == this.userId &&
+          other.title == this.title &&
+          other.amount == this.amount &&
+          other.categoryId == this.categoryId &&
+          other.isExpense == this.isExpense &&
+          other.startDate == this.startDate &&
+          other.recurrence == this.recurrence &&
+          other.isActive == this.isActive &&
+          other.createdAt == this.createdAt);
+}
+
+class PlannedPaymentsTableCompanion
+    extends UpdateCompanion<PlannedPaymentsTableData> {
+  final Value<String> id;
+  final Value<String?> userId;
+  final Value<String> title;
+  final Value<double> amount;
+  final Value<String> categoryId;
+  final Value<bool> isExpense;
+  final Value<DateTime> startDate;
+  final Value<String> recurrence;
+  final Value<bool> isActive;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const PlannedPaymentsTableCompanion({
+    this.id = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.title = const Value.absent(),
+    this.amount = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.isExpense = const Value.absent(),
+    this.startDate = const Value.absent(),
+    this.recurrence = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PlannedPaymentsTableCompanion.insert({
+    required String id,
+    this.userId = const Value.absent(),
+    required String title,
+    required double amount,
+    required String categoryId,
+    required bool isExpense,
+    required DateTime startDate,
+    required String recurrence,
+    this.isActive = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       title = Value(title),
+       amount = Value(amount),
+       categoryId = Value(categoryId),
+       isExpense = Value(isExpense),
+       startDate = Value(startDate),
+       recurrence = Value(recurrence);
+  static Insertable<PlannedPaymentsTableData> custom({
+    Expression<String>? id,
+    Expression<String>? userId,
+    Expression<String>? title,
+    Expression<double>? amount,
+    Expression<String>? categoryId,
+    Expression<bool>? isExpense,
+    Expression<DateTime>? startDate,
+    Expression<String>? recurrence,
+    Expression<bool>? isActive,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (userId != null) 'user_id': userId,
+      if (title != null) 'title': title,
+      if (amount != null) 'amount': amount,
+      if (categoryId != null) 'category_id': categoryId,
+      if (isExpense != null) 'is_expense': isExpense,
+      if (startDate != null) 'start_date': startDate,
+      if (recurrence != null) 'recurrence': recurrence,
+      if (isActive != null) 'is_active': isActive,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PlannedPaymentsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String?>? userId,
+    Value<String>? title,
+    Value<double>? amount,
+    Value<String>? categoryId,
+    Value<bool>? isExpense,
+    Value<DateTime>? startDate,
+    Value<String>? recurrence,
+    Value<bool>? isActive,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return PlannedPaymentsTableCompanion(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      title: title ?? this.title,
+      amount: amount ?? this.amount,
+      categoryId: categoryId ?? this.categoryId,
+      isExpense: isExpense ?? this.isExpense,
+      startDate: startDate ?? this.startDate,
+      recurrence: recurrence ?? this.recurrence,
+      isActive: isActive ?? this.isActive,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<String>(categoryId.value);
+    }
+    if (isExpense.present) {
+      map['is_expense'] = Variable<bool>(isExpense.value);
+    }
+    if (startDate.present) {
+      map['start_date'] = Variable<DateTime>(startDate.value);
+    }
+    if (recurrence.present) {
+      map['recurrence'] = Variable<String>(recurrence.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PlannedPaymentsTableCompanion(')
+          ..write('id: $id, ')
+          ..write('userId: $userId, ')
+          ..write('title: $title, ')
+          ..write('amount: $amount, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('isExpense: $isExpense, ')
+          ..write('startDate: $startDate, ')
+          ..write('recurrence: $recurrence, ')
+          ..write('isActive: $isActive, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1020,6 +1655,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TransactionsTableTable transactionsTable =
       $TransactionsTableTable(this);
   late final $UserTableTable userTable = $UserTableTable(this);
+  late final $PlannedPaymentsTableTable plannedPaymentsTable =
+      $PlannedPaymentsTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1028,6 +1665,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     categoriesTable,
     transactionsTable,
     userTable,
+    plannedPaymentsTable,
   ];
 }
 
@@ -1620,6 +2258,321 @@ typedef $$UserTableTableProcessedTableManager =
       UserTableData,
       PrefetchHooks Function()
     >;
+typedef $$PlannedPaymentsTableTableCreateCompanionBuilder =
+    PlannedPaymentsTableCompanion Function({
+      required String id,
+      Value<String?> userId,
+      required String title,
+      required double amount,
+      required String categoryId,
+      required bool isExpense,
+      required DateTime startDate,
+      required String recurrence,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$PlannedPaymentsTableTableUpdateCompanionBuilder =
+    PlannedPaymentsTableCompanion Function({
+      Value<String> id,
+      Value<String?> userId,
+      Value<String> title,
+      Value<double> amount,
+      Value<String> categoryId,
+      Value<bool> isExpense,
+      Value<DateTime> startDate,
+      Value<String> recurrence,
+      Value<bool> isActive,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$PlannedPaymentsTableTableFilterComposer
+    extends Composer<_$AppDatabase, $PlannedPaymentsTableTable> {
+  $$PlannedPaymentsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isExpense => $composableBuilder(
+    column: $table.isExpense,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PlannedPaymentsTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $PlannedPaymentsTableTable> {
+  $$PlannedPaymentsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isExpense => $composableBuilder(
+    column: $table.isExpense,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PlannedPaymentsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PlannedPaymentsTableTable> {
+  $$PlannedPaymentsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isExpense =>
+      $composableBuilder(column: $table.isExpense, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startDate =>
+      $composableBuilder(column: $table.startDate, builder: (column) => column);
+
+  GeneratedColumn<String> get recurrence => $composableBuilder(
+    column: $table.recurrence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$PlannedPaymentsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PlannedPaymentsTableTable,
+          PlannedPaymentsTableData,
+          $$PlannedPaymentsTableTableFilterComposer,
+          $$PlannedPaymentsTableTableOrderingComposer,
+          $$PlannedPaymentsTableTableAnnotationComposer,
+          $$PlannedPaymentsTableTableCreateCompanionBuilder,
+          $$PlannedPaymentsTableTableUpdateCompanionBuilder,
+          (
+            PlannedPaymentsTableData,
+            BaseReferences<
+              _$AppDatabase,
+              $PlannedPaymentsTableTable,
+              PlannedPaymentsTableData
+            >,
+          ),
+          PlannedPaymentsTableData,
+          PrefetchHooks Function()
+        > {
+  $$PlannedPaymentsTableTableTableManager(
+    _$AppDatabase db,
+    $PlannedPaymentsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PlannedPaymentsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PlannedPaymentsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$PlannedPaymentsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String?> userId = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<double> amount = const Value.absent(),
+                Value<String> categoryId = const Value.absent(),
+                Value<bool> isExpense = const Value.absent(),
+                Value<DateTime> startDate = const Value.absent(),
+                Value<String> recurrence = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlannedPaymentsTableCompanion(
+                id: id,
+                userId: userId,
+                title: title,
+                amount: amount,
+                categoryId: categoryId,
+                isExpense: isExpense,
+                startDate: startDate,
+                recurrence: recurrence,
+                isActive: isActive,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<String?> userId = const Value.absent(),
+                required String title,
+                required double amount,
+                required String categoryId,
+                required bool isExpense,
+                required DateTime startDate,
+                required String recurrence,
+                Value<bool> isActive = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PlannedPaymentsTableCompanion.insert(
+                id: id,
+                userId: userId,
+                title: title,
+                amount: amount,
+                categoryId: categoryId,
+                isExpense: isExpense,
+                startDate: startDate,
+                recurrence: recurrence,
+                isActive: isActive,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PlannedPaymentsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PlannedPaymentsTableTable,
+      PlannedPaymentsTableData,
+      $$PlannedPaymentsTableTableFilterComposer,
+      $$PlannedPaymentsTableTableOrderingComposer,
+      $$PlannedPaymentsTableTableAnnotationComposer,
+      $$PlannedPaymentsTableTableCreateCompanionBuilder,
+      $$PlannedPaymentsTableTableUpdateCompanionBuilder,
+      (
+        PlannedPaymentsTableData,
+        BaseReferences<
+          _$AppDatabase,
+          $PlannedPaymentsTableTable,
+          PlannedPaymentsTableData
+        >,
+      ),
+      PlannedPaymentsTableData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -1630,4 +2583,6 @@ class $AppDatabaseManager {
       $$TransactionsTableTableTableManager(_db, _db.transactionsTable);
   $$UserTableTableTableManager get userTable =>
       $$UserTableTableTableManager(_db, _db.userTable);
+  $$PlannedPaymentsTableTableTableManager get plannedPaymentsTable =>
+      $$PlannedPaymentsTableTableTableManager(_db, _db.plannedPaymentsTable);
 }
