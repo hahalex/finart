@@ -6,7 +6,8 @@ import '../transactions/providers/transactions_notifier.dart';
 import '../transactions/providers/categories_provider.dart';
 import '../../common/models/category_model.dart';
 import '../../common/utils/app_theme.dart';
-import '../planned/presentation/planned_list_screen.dart'; // ✅ Для навигации
+import '../planned/presentation/planned_list_screen.dart';
+import '../../common/widgets/category_picker.dart';
 
 /// Экран добавления дохода или расхода (упрощённый)
 class AddTransactionScreen extends ConsumerStatefulWidget {
@@ -117,55 +118,20 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
               const SizedBox(height: 16),
 
-              /// Категории
+              /// 🔹 Категории (новый пикер с поддержкой подкатегорий)
               Text('Категория', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 8),
               SizedBox(
-                height: 100,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: categories.map((category) {
-                    final isSelected = selectedCategory == category;
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          selectedCategory = category;
-                        });
-                      },
-                      child: Container(
-                        width: 80,
-                        margin: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppTheme.primaryColor.withOpacity(0.15)
-                              : Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(16),
-                          border: isSelected
-                              ? Border.all(
-                                  color: AppTheme.primaryColor,
-                                  width: 2,
-                                )
-                              : null,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              category.icon,
-                              size: 32,
-                              color: AppTheme.primaryColor,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              category.name,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                height: 220, // подгоните под дизайн
+                child: CategoryPicker(
+                  isExpense: isExpense,
+                  selectedCategory: selectedCategory,
+                  onSelected: (category) {
+                    setState(() {
+                      selectedCategory = category;
+                    });
+                  },
+                  mode: CategoryPickerMode.grid,
                 ),
               ),
 

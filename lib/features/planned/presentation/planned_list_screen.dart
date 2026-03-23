@@ -182,9 +182,12 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                   (c) => c.id == payment.categoryId,
                   orElse: () => CategoryModel(
                     id: 'unknown',
-                    name: 'Без категории',
-                    icon: Icons.category,
+                    name: 'Неизвестно',
+                    iconCode: Icons
+                        .category_outlined
+                        .codePoint, // ✅ codePoint, не IconData
                     isExpense: true,
+                    color: 0xFF90A4AE, // ✅ обязательно указывать цвет
                   ),
                 );
                 return PlannedTile(
@@ -305,7 +308,7 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    cat.icon,
+                                    cat.iconData,
                                     size: 24,
                                     color: AppTheme.primaryColor,
                                   ),
@@ -601,7 +604,7 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Icon(
-                                    cat.icon,
+                                    cat.iconData,
                                     size: 24,
                                     color: AppTheme.primaryColor,
                                   ),

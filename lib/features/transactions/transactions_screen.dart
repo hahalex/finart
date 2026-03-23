@@ -113,7 +113,7 @@ class TransactionsScreen extends ConsumerWidget {
                                 orElse: () => CategoryModel(
                                   id: 'unknown',
                                   name: 'Без категории',
-                                  icon: Icons.category,
+                                  iconData: Icons.category_outlined,
                                   isExpense: true,
                                 ),
                               );

@@ -52,8 +52,88 @@ class $CategoriesTableTable extends CategoriesTable
       'CHECK ("is_expense" IN (0, 1))',
     ),
   );
+  static const VerificationMeta _parentIdMeta = const VerificationMeta(
+    'parentId',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, name, iconCode, isExpense];
+  late final GeneratedColumn<String> parentId = GeneratedColumn<String>(
+    'parent_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<int> color = GeneratedColumn<int>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isCustomMeta = const VerificationMeta(
+    'isCustom',
+  );
+  @override
+  late final GeneratedColumn<bool> isCustom = GeneratedColumn<bool>(
+    'is_custom',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_custom" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _orderMeta = const VerificationMeta('order');
+  @override
+  late final GeneratedColumn<int> order = GeneratedColumn<int>(
+    'order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _aiTagMeta = const VerificationMeta('aiTag');
+  @override
+  late final GeneratedColumn<String> aiTag = GeneratedColumn<String>(
+    'ai_tag',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    iconCode,
+    isExpense,
+    parentId,
+    color,
+    isCustom,
+    isArchived,
+    order,
+    aiTag,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -95,6 +175,44 @@ class $CategoriesTableTable extends CategoriesTable
     } else if (isInserting) {
       context.missing(_isExpenseMeta);
     }
+    if (data.containsKey('parent_id')) {
+      context.handle(
+        _parentIdMeta,
+        parentId.isAcceptableOrUnknown(data['parent_id']!, _parentIdMeta),
+      );
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_colorMeta);
+    }
+    if (data.containsKey('is_custom')) {
+      context.handle(
+        _isCustomMeta,
+        isCustom.isAcceptableOrUnknown(data['is_custom']!, _isCustomMeta),
+      );
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    }
+    if (data.containsKey('order')) {
+      context.handle(
+        _orderMeta,
+        order.isAcceptableOrUnknown(data['order']!, _orderMeta),
+      );
+    }
+    if (data.containsKey('ai_tag')) {
+      context.handle(
+        _aiTagMeta,
+        aiTag.isAcceptableOrUnknown(data['ai_tag']!, _aiTagMeta),
+      );
+    }
     return context;
   }
 
@@ -120,6 +238,30 @@ class $CategoriesTableTable extends CategoriesTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_expense'],
       )!,
+      parentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}parent_id'],
+      ),
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}color'],
+      )!,
+      isCustom: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_custom'],
+      )!,
+      isArchived: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_archived'],
+      )!,
+      order: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}order'],
+      )!,
+      aiTag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ai_tag'],
+      ),
     );
   }
 
@@ -131,22 +273,27 @@ class $CategoriesTableTable extends CategoriesTable
 
 class CategoriesTableData extends DataClass
     implements Insertable<CategoriesTableData> {
-  /// Уникальный идентификатор категории
   final String id;
-
-  /// Название категории
   final String name;
-
-  /// Код иконки (IconData.codePoint)
   final int iconCode;
-
-  /// Является ли категорией расхода
   final bool isExpense;
+  final String? parentId;
+  final int color;
+  final bool isCustom;
+  final bool isArchived;
+  final int order;
+  final String? aiTag;
   const CategoriesTableData({
     required this.id,
     required this.name,
     required this.iconCode,
     required this.isExpense,
+    this.parentId,
+    required this.color,
+    required this.isCustom,
+    required this.isArchived,
+    required this.order,
+    this.aiTag,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -155,6 +302,16 @@ class CategoriesTableData extends DataClass
     map['name'] = Variable<String>(name);
     map['icon_code'] = Variable<int>(iconCode);
     map['is_expense'] = Variable<bool>(isExpense);
+    if (!nullToAbsent || parentId != null) {
+      map['parent_id'] = Variable<String>(parentId);
+    }
+    map['color'] = Variable<int>(color);
+    map['is_custom'] = Variable<bool>(isCustom);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['order'] = Variable<int>(order);
+    if (!nullToAbsent || aiTag != null) {
+      map['ai_tag'] = Variable<String>(aiTag);
+    }
     return map;
   }
 
@@ -164,6 +321,16 @@ class CategoriesTableData extends DataClass
       name: Value(name),
       iconCode: Value(iconCode),
       isExpense: Value(isExpense),
+      parentId: parentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(parentId),
+      color: Value(color),
+      isCustom: Value(isCustom),
+      isArchived: Value(isArchived),
+      order: Value(order),
+      aiTag: aiTag == null && nullToAbsent
+          ? const Value.absent()
+          : Value(aiTag),
     );
   }
 
@@ -177,6 +344,12 @@ class CategoriesTableData extends DataClass
       name: serializer.fromJson<String>(json['name']),
       iconCode: serializer.fromJson<int>(json['iconCode']),
       isExpense: serializer.fromJson<bool>(json['isExpense']),
+      parentId: serializer.fromJson<String?>(json['parentId']),
+      color: serializer.fromJson<int>(json['color']),
+      isCustom: serializer.fromJson<bool>(json['isCustom']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      order: serializer.fromJson<int>(json['order']),
+      aiTag: serializer.fromJson<String?>(json['aiTag']),
     );
   }
   @override
@@ -187,6 +360,12 @@ class CategoriesTableData extends DataClass
       'name': serializer.toJson<String>(name),
       'iconCode': serializer.toJson<int>(iconCode),
       'isExpense': serializer.toJson<bool>(isExpense),
+      'parentId': serializer.toJson<String?>(parentId),
+      'color': serializer.toJson<int>(color),
+      'isCustom': serializer.toJson<bool>(isCustom),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'order': serializer.toJson<int>(order),
+      'aiTag': serializer.toJson<String?>(aiTag),
     };
   }
 
@@ -195,11 +374,23 @@ class CategoriesTableData extends DataClass
     String? name,
     int? iconCode,
     bool? isExpense,
+    Value<String?> parentId = const Value.absent(),
+    int? color,
+    bool? isCustom,
+    bool? isArchived,
+    int? order,
+    Value<String?> aiTag = const Value.absent(),
   }) => CategoriesTableData(
     id: id ?? this.id,
     name: name ?? this.name,
     iconCode: iconCode ?? this.iconCode,
     isExpense: isExpense ?? this.isExpense,
+    parentId: parentId.present ? parentId.value : this.parentId,
+    color: color ?? this.color,
+    isCustom: isCustom ?? this.isCustom,
+    isArchived: isArchived ?? this.isArchived,
+    order: order ?? this.order,
+    aiTag: aiTag.present ? aiTag.value : this.aiTag,
   );
   CategoriesTableData copyWithCompanion(CategoriesTableCompanion data) {
     return CategoriesTableData(
@@ -207,6 +398,14 @@ class CategoriesTableData extends DataClass
       name: data.name.present ? data.name.value : this.name,
       iconCode: data.iconCode.present ? data.iconCode.value : this.iconCode,
       isExpense: data.isExpense.present ? data.isExpense.value : this.isExpense,
+      parentId: data.parentId.present ? data.parentId.value : this.parentId,
+      color: data.color.present ? data.color.value : this.color,
+      isCustom: data.isCustom.present ? data.isCustom.value : this.isCustom,
+      isArchived: data.isArchived.present
+          ? data.isArchived.value
+          : this.isArchived,
+      order: data.order.present ? data.order.value : this.order,
+      aiTag: data.aiTag.present ? data.aiTag.value : this.aiTag,
     );
   }
 
@@ -216,13 +415,30 @@ class CategoriesTableData extends DataClass
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('iconCode: $iconCode, ')
-          ..write('isExpense: $isExpense')
+          ..write('isExpense: $isExpense, ')
+          ..write('parentId: $parentId, ')
+          ..write('color: $color, ')
+          ..write('isCustom: $isCustom, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('order: $order, ')
+          ..write('aiTag: $aiTag')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, name, iconCode, isExpense);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    iconCode,
+    isExpense,
+    parentId,
+    color,
+    isCustom,
+    isArchived,
+    order,
+    aiTag,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -230,7 +446,13 @@ class CategoriesTableData extends DataClass
           other.id == this.id &&
           other.name == this.name &&
           other.iconCode == this.iconCode &&
-          other.isExpense == this.isExpense);
+          other.isExpense == this.isExpense &&
+          other.parentId == this.parentId &&
+          other.color == this.color &&
+          other.isCustom == this.isCustom &&
+          other.isArchived == this.isArchived &&
+          other.order == this.order &&
+          other.aiTag == this.aiTag);
 }
 
 class CategoriesTableCompanion extends UpdateCompanion<CategoriesTableData> {
@@ -238,12 +460,24 @@ class CategoriesTableCompanion extends UpdateCompanion<CategoriesTableData> {
   final Value<String> name;
   final Value<int> iconCode;
   final Value<bool> isExpense;
+  final Value<String?> parentId;
+  final Value<int> color;
+  final Value<bool> isCustom;
+  final Value<bool> isArchived;
+  final Value<int> order;
+  final Value<String?> aiTag;
   final Value<int> rowid;
   const CategoriesTableCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
     this.iconCode = const Value.absent(),
     this.isExpense = const Value.absent(),
+    this.parentId = const Value.absent(),
+    this.color = const Value.absent(),
+    this.isCustom = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.order = const Value.absent(),
+    this.aiTag = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   CategoriesTableCompanion.insert({
@@ -251,16 +485,29 @@ class CategoriesTableCompanion extends UpdateCompanion<CategoriesTableData> {
     required String name,
     required int iconCode,
     required bool isExpense,
+    this.parentId = const Value.absent(),
+    required int color,
+    this.isCustom = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.order = const Value.absent(),
+    this.aiTag = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
        iconCode = Value(iconCode),
-       isExpense = Value(isExpense);
+       isExpense = Value(isExpense),
+       color = Value(color);
   static Insertable<CategoriesTableData> custom({
     Expression<String>? id,
     Expression<String>? name,
     Expression<int>? iconCode,
     Expression<bool>? isExpense,
+    Expression<String>? parentId,
+    Expression<int>? color,
+    Expression<bool>? isCustom,
+    Expression<bool>? isArchived,
+    Expression<int>? order,
+    Expression<String>? aiTag,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -268,6 +515,12 @@ class CategoriesTableCompanion extends UpdateCompanion<CategoriesTableData> {
       if (name != null) 'name': name,
       if (iconCode != null) 'icon_code': iconCode,
       if (isExpense != null) 'is_expense': isExpense,
+      if (parentId != null) 'parent_id': parentId,
+      if (color != null) 'color': color,
+      if (isCustom != null) 'is_custom': isCustom,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (order != null) 'order': order,
+      if (aiTag != null) 'ai_tag': aiTag,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -277,6 +530,12 @@ class CategoriesTableCompanion extends UpdateCompanion<CategoriesTableData> {
     Value<String>? name,
     Value<int>? iconCode,
     Value<bool>? isExpense,
+    Value<String?>? parentId,
+    Value<int>? color,
+    Value<bool>? isCustom,
+    Value<bool>? isArchived,
+    Value<int>? order,
+    Value<String?>? aiTag,
     Value<int>? rowid,
   }) {
     return CategoriesTableCompanion(
@@ -284,6 +543,12 @@ class CategoriesTableCompanion extends UpdateCompanion<CategoriesTableData> {
       name: name ?? this.name,
       iconCode: iconCode ?? this.iconCode,
       isExpense: isExpense ?? this.isExpense,
+      parentId: parentId ?? this.parentId,
+      color: color ?? this.color,
+      isCustom: isCustom ?? this.isCustom,
+      isArchived: isArchived ?? this.isArchived,
+      order: order ?? this.order,
+      aiTag: aiTag ?? this.aiTag,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -303,6 +568,24 @@ class CategoriesTableCompanion extends UpdateCompanion<CategoriesTableData> {
     if (isExpense.present) {
       map['is_expense'] = Variable<bool>(isExpense.value);
     }
+    if (parentId.present) {
+      map['parent_id'] = Variable<String>(parentId.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<int>(color.value);
+    }
+    if (isCustom.present) {
+      map['is_custom'] = Variable<bool>(isCustom.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (order.present) {
+      map['order'] = Variable<int>(order.value);
+    }
+    if (aiTag.present) {
+      map['ai_tag'] = Variable<String>(aiTag.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -316,6 +599,12 @@ class CategoriesTableCompanion extends UpdateCompanion<CategoriesTableData> {
           ..write('name: $name, ')
           ..write('iconCode: $iconCode, ')
           ..write('isExpense: $isExpense, ')
+          ..write('parentId: $parentId, ')
+          ..write('color: $color, ')
+          ..write('isCustom: $isCustom, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('order: $order, ')
+          ..write('aiTag: $aiTag, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1675,6 +1964,12 @@ typedef $$CategoriesTableTableCreateCompanionBuilder =
       required String name,
       required int iconCode,
       required bool isExpense,
+      Value<String?> parentId,
+      required int color,
+      Value<bool> isCustom,
+      Value<bool> isArchived,
+      Value<int> order,
+      Value<String?> aiTag,
       Value<int> rowid,
     });
 typedef $$CategoriesTableTableUpdateCompanionBuilder =
@@ -1683,6 +1978,12 @@ typedef $$CategoriesTableTableUpdateCompanionBuilder =
       Value<String> name,
       Value<int> iconCode,
       Value<bool> isExpense,
+      Value<String?> parentId,
+      Value<int> color,
+      Value<bool> isCustom,
+      Value<bool> isArchived,
+      Value<int> order,
+      Value<String?> aiTag,
       Value<int> rowid,
     });
 
@@ -1712,6 +2013,36 @@ class $$CategoriesTableTableFilterComposer
 
   ColumnFilters<bool> get isExpense => $composableBuilder(
     column: $table.isExpense,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get parentId => $composableBuilder(
+    column: $table.parentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isCustom => $composableBuilder(
+    column: $table.isCustom,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get order => $composableBuilder(
+    column: $table.order,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get aiTag => $composableBuilder(
+    column: $table.aiTag,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -1744,6 +2075,36 @@ class $$CategoriesTableTableOrderingComposer
     column: $table.isExpense,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get parentId => $composableBuilder(
+    column: $table.parentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isCustom => $composableBuilder(
+    column: $table.isCustom,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get order => $composableBuilder(
+    column: $table.order,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get aiTag => $composableBuilder(
+    column: $table.aiTag,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CategoriesTableTableAnnotationComposer
@@ -1766,6 +2127,26 @@ class $$CategoriesTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isExpense =>
       $composableBuilder(column: $table.isExpense, builder: (column) => column);
+
+  GeneratedColumn<String> get parentId =>
+      $composableBuilder(column: $table.parentId, builder: (column) => column);
+
+  GeneratedColumn<int> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<bool> get isCustom =>
+      $composableBuilder(column: $table.isCustom, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get order =>
+      $composableBuilder(column: $table.order, builder: (column) => column);
+
+  GeneratedColumn<String> get aiTag =>
+      $composableBuilder(column: $table.aiTag, builder: (column) => column);
 }
 
 class $$CategoriesTableTableTableManager
@@ -1809,12 +2190,24 @@ class $$CategoriesTableTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<int> iconCode = const Value.absent(),
                 Value<bool> isExpense = const Value.absent(),
+                Value<String?> parentId = const Value.absent(),
+                Value<int> color = const Value.absent(),
+                Value<bool> isCustom = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<int> order = const Value.absent(),
+                Value<String?> aiTag = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesTableCompanion(
                 id: id,
                 name: name,
                 iconCode: iconCode,
                 isExpense: isExpense,
+                parentId: parentId,
+                color: color,
+                isCustom: isCustom,
+                isArchived: isArchived,
+                order: order,
+                aiTag: aiTag,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1823,12 +2216,24 @@ class $$CategoriesTableTableTableManager
                 required String name,
                 required int iconCode,
                 required bool isExpense,
+                Value<String?> parentId = const Value.absent(),
+                required int color,
+                Value<bool> isCustom = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<int> order = const Value.absent(),
+                Value<String?> aiTag = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CategoriesTableCompanion.insert(
                 id: id,
                 name: name,
                 iconCode: iconCode,
                 isExpense: isExpense,
+                parentId: parentId,
+                color: color,
+                isCustom: isCustom,
+                isArchived: isArchived,
+                order: order,
+                aiTag: aiTag,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -28,4 +28,15 @@ class AppTheme {
       elevation: 0,
     ),
   );
+
+  /// 🔹 Helper: получить контрастный текст для цвета фона
+  static Color getContrastText(Color backgroundColor) {
+    final luminance = backgroundColor.computeLuminance();
+    return luminance > 0.5 ? Colors.black87 : Colors.white;
+  }
+
+  /// 🔹 Helper: смягчить цвет для фона карточки
+  static Color softenColor(Color color, [double opacity = 0.12]) {
+    return color.withOpacity(opacity);
+  }
 }
