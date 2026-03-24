@@ -6,6 +6,7 @@ import '../providers/categories_provider.dart';
 import '../utils/app_theme.dart';
 import 'category_icon.dart';
 import 'category_tile.dart';
+import '../../features/categories/categories_screen.dart';
 
 /// 🔹 Тип обратного вызова при выборе категории
 typedef OnCategorySelected = void Function(CategoryModel category);
@@ -426,12 +427,11 @@ class CategoryPicker extends ConsumerWidget {
   // 🔧 Навигация к управлению категориями
   // ============================================================================
   void _navigateToManage(BuildContext context) {
-    // TODO: реализовать навигацию к экрану управления категориями
-    // Пока заглушка:
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Управление категориями — в разработке'),
-        behavior: SnackBarBehavior.floating,
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CategoriesScreen(),
+        settings: RouteSettings(arguments: isExpense),
       ),
     );
   }

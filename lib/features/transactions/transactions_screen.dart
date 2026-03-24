@@ -10,8 +10,8 @@ import '../../common/utils/date_grouping.dart';
 import '../../common/models/category_model.dart';
 import '../../common/utils/app_theme.dart';
 import '../../common/providers/selected_month_provider.dart';
+import '../../common/providers/categories_provider.dart';
 import '../transactions/providers/transactions_notifier.dart';
-import '../transactions/providers/categories_provider.dart';
 import '../../features/planned/presentation/planned_list_screen.dart';
 
 /// Экран "Записи" — главный экран приложения
@@ -22,7 +22,9 @@ class TransactionsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedMonth = ref.watch(selectedMonthProvider);
     final allTransactions = ref.watch(transactionsProvider);
-    final categories = ref.watch(categoriesProvider);
+
+    // 🔹 categoriesAsync — это AsyncValue<List<CategoryModel>>
+    final categoriesAsync = ref.watch(allCategoriesProvider);
 
     /// ✅ Фильтруем транзакции по выбранному месяцу
     final (monthStart, monthEnd) = getMonthRange(selectedMonth);
@@ -99,36 +101,63 @@ class TransactionsScreen extends ConsumerWidget {
 
             /// Список операций
             Expanded(
-              child: groupedTransactions.isEmpty
-                  ? _buildEmptyState(context, selectedMonth)
-                  : ListView(
-                      children: groupedTransactions.entries.map((entry) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            DateHeader(label: entry.key),
-                            ...entry.value.map((transaction) {
-                              final category = categories.firstWhere(
-                                (c) => c.id == transaction.categoryId,
-                                orElse: () => CategoryModel(
-                                  id: 'unknown',
-                                  name: 'Без категории',
-                                  iconData: Icons.category_outlined,
-                                  isExpense: true,
-                                ),
-                              );
+              child: categoriesAsync.when(
+                // 🔹 Пока категории загружаются из БД
+                loading: () =>
+                    const Center(child: CircularProgressIndicator.adaptive()),
 
-                              return TransactionTile(
-                                title: transaction.description ?? category.name,
-                                category: category.name,
-                                amount: transaction.amount,
-                                isExpense: transaction.isExpense,
-                              );
-                            }),
-                          ],
-                        );
-                      }).toList(),
+                // 🔹 Если ошибка загрузки
+                error: (err, _) => Center(
+                  child: Text(
+                    'Ошибка: $err',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                     ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                // 🔹 ВАЖНО: 'data:' — именованный параметр!
+                data: (categories) {
+                  if (groupedTransactions.isEmpty) {
+                    return _buildEmptyState(context, selectedMonth);
+                  }
+
+                  return ListView(
+                    children: groupedTransactions.entries.map((entry) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          DateHeader(label: entry.key),
+                          ...entry.value.map((transaction) {
+                            // 🔹 Поиск категории с поддержкой подкатегорий
+                            final category = categories.firstWhere(
+                              (c) => c.id == transaction.categoryId,
+                              orElse: () => CategoryModel(
+                                id: 'unknown',
+                                name: 'Без категории',
+                                iconCode: Icons.category_outlined.codePoint,
+                                isExpense: transaction.isExpense,
+                                color: 0xFF9E9E9E,
+                              ),
+                            );
+
+                            return TransactionTile(
+                              title: transaction.description ?? category.name,
+                              category: category.name,
+                              // 🔹 NEW: передаём иконку и цвет для красивого отображения
+                              categoryIcon: category.iconData,
+                              categoryColor: category.colorValue,
+                              amount: transaction.amount,
+                              isExpense: transaction.isExpense,
+                            );
+                          }),
+                        ],
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
             ),
           ],
         ),

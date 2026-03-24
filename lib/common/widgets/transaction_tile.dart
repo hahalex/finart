@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 
-/// Элемент списка операций (один доход или расход)
 class TransactionTile extends StatelessWidget {
   final String title;
   final String category;
   final double amount;
   final bool isExpense;
+
+  // 🔹 NEW: параметры для отображения категории
+  final IconData? categoryIcon;
+  final Color? categoryColor;
 
   const TransactionTile({
     super.key,
@@ -14,26 +17,40 @@ class TransactionTile extends StatelessWidget {
     required this.category,
     required this.amount,
     required this.isExpense,
+    this.categoryIcon,
+    this.categoryColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = isExpense ? AppTheme.expenseColor : AppTheme.incomeColor;
-
     return ListTile(
+      // 🔹 Иконка категории с цветным фоном
       leading: CircleAvatar(
-        backgroundColor: color.withOpacity(0.15),
+        radius: 20,
+        backgroundColor: (categoryColor ?? Colors.grey).withOpacity(0.15),
         child: Icon(
-          isExpense ? Icons.arrow_upward : Icons.arrow_downward,
-          color: color,
+          categoryIcon ?? Icons.category_outlined,
+          color: categoryColor ?? Colors.grey,
+          size: 20,
         ),
       ),
-      title: Text(title),
-      subtitle: Text(category),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(
+        category,
+        style: TextStyle(
+          color: categoryColor ?? Colors.grey[600],
+          fontSize: 13,
+        ),
+      ),
       trailing: Text(
         '${isExpense ? '-' : '+'}${amount.toStringAsFixed(2)} ₽',
-        style: TextStyle(color: color, fontWeight: FontWeight.bold),
+        style: TextStyle(
+          color: isExpense ? AppTheme.expenseColor : AppTheme.incomeColor,
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+        ),
       ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
 }

@@ -1,21 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../common/utils/app_theme.dart';
-import '../../../../common/models/category_model.dart';
-import '../../../../common/models/planned_payment_model.dart';
-import '../providers/planned_ui_providers.dart';
-import '../../../../common/providers/planned_repository_provider.dart';
 
-/// Диалог создания/редактирования запланированного платежа
+import '../../../common/utils/app_theme.dart';
+import '../../../common/models/category_model.dart';
+import '../../../common/models/planned_payment_model.dart';
+import '../../../common/providers/categories_provider.dart';
+import '../../../common/providers/planned_repository_provider.dart';
+import '../providers/planned_ui_providers.dart';
+
 class PlannedFormDialog extends ConsumerStatefulWidget {
   final PlannedPaymentModel? existingPayment;
-  final List<CategoryModel> categories;
 
-  const PlannedFormDialog({
-    super.key,
-    this.existingPayment,
-    required this.categories,
-  });
+  const PlannedFormDialog({super.key, this.existingPayment});
 
   @override
   ConsumerState<PlannedFormDialog> createState() => _PlannedFormDialogState();
@@ -23,43 +19,36 @@ class PlannedFormDialog extends ConsumerStatefulWidget {
 
 class _PlannedFormDialogState extends ConsumerState<PlannedFormDialog> {
   late bool _isExpense;
-  late String _selectedCategoryId;
+
+  String? _selectedRootId;
+  String? _selectedCategoryId;
+
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
+
   DateTime _selectedDate = DateTime.now();
   String _recurrence = 'monthly';
 
   @override
   void initState() {
     super.initState();
+
     if (widget.existingPayment != null) {
-      _isExpense = widget.existingPayment!.isExpense;
-      _selectedCategoryId = widget.existingPayment!.categoryId;
-      _titleController.text = widget.existingPayment!.title;
-      _amountController.text = widget.existingPayment!.amount.toString();
-      _selectedDate = widget.existingPayment!.startDate;
-      _recurrence = widget.existingPayment!.recurrence;
+      final p = widget.existingPayment!;
+      _isExpense = p.isExpense;
+      _selectedCategoryId = p.categoryId;
+      _titleController.text = p.title;
+      _amountController.text = p.amount.toString();
+      _selectedDate = p.startDate;
+      _recurrence = p.recurrence;
+    } else {
+      _isExpense = true;
     }
   }
 
   @override
-  void dispose() {
-    _titleController.dispose();
-    _amountController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final filteredCategories = widget.categories
-        .where((c) => c.isExpense == _isExpense)
-        .toList();
-
-    final isValid =
-        _titleController.text.trim().isNotEmpty &&
-        double.tryParse(_amountController.text) != null &&
-        double.tryParse(_amountController.text)! > 0 &&
-        _selectedCategoryId.isNotEmpty;
+    final categoriesAsync = ref.watch(_categoriesProvider(_isExpense));
 
     return AlertDialog(
       title: Text(
@@ -69,14 +58,15 @@ class _PlannedFormDialogState extends ConsumerState<PlannedFormDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Переключатель доход/расход
+            /// 🔹 Тип
             ToggleButtons(
               isSelected: [_isExpense, !_isExpense],
               borderRadius: BorderRadius.circular(12),
               onPressed: (index) {
                 setState(() {
                   _isExpense = index == 0;
-                  _selectedCategoryId = '';
+                  _selectedRootId = null;
+                  _selectedCategoryId = null;
                 });
               },
               children: const [
@@ -90,80 +80,204 @@ class _PlannedFormDialogState extends ConsumerState<PlannedFormDialog> {
                 ),
               ],
             ),
+
             const SizedBox(height: 16),
 
-            // Название
+            /// 🔹 Название
             TextField(
               controller: _titleController,
               decoration: const InputDecoration(
                 labelText: 'Название',
-                hintText: 'Например: Подписка Яндекс.Плюс',
                 border: OutlineInputBorder(),
               ),
             ),
+
             const SizedBox(height: 12),
 
-            // Сумма
+            /// 🔹 Сумма
             TextField(
               controller: _amountController,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 labelText: 'Сумма',
-                hintText: '0 ₽',
                 border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.attach_money),
               ),
             ),
-            const SizedBox(height: 12),
 
-            // Категория (горизонтальный скролл как в AddTransactionScreen)
-            Text('Категория', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 16),
+
+            /// 🔹 РОДИТЕЛЬСКИЕ КАТЕГОРИИ
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Категория',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+            ),
+
             const SizedBox(height: 8),
+
             SizedBox(
-              height: 90,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: filteredCategories.map((category) {
-                  final isSelected = _selectedCategoryId == category.id;
-                  return GestureDetector(
-                    onTap: () =>
-                        setState(() => _selectedCategoryId = category.id),
-                    child: Container(
-                      width: 75,
-                      margin: const EdgeInsets.symmetric(horizontal: 6),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.primaryColor.withOpacity(0.15)
-                            : Colors.grey.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(14),
-                        border: isSelected
-                            ? Border.all(color: AppTheme.primaryColor)
-                            : null,
+              height: 100,
+              child: categoriesAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator.adaptive()),
+                error: (e, _) => Text('Ошибка: $e'),
+                data: (categories) {
+                  final roots = categories
+                      .where((c) => c.parentId == null)
+                      .toList();
+
+                  final subs = categories
+                      .where((c) => c.parentId != null)
+                      .toList();
+
+                  return Column(
+                    children: [
+                      /// 🔹 ROOT LIST
+                      SizedBox(
+                        height: 90,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: roots.map((root) {
+                            final isSelected = _selectedRootId == root.id;
+
+                            return GestureDetector(
+                              onTap: () {
+                                final hasSubs = subs.any(
+                                  (s) => s.parentId == root.id,
+                                );
+
+                                setState(() {
+                                  _selectedRootId = root.id;
+
+                                  /// если нет подкатегорий → сразу выбираем
+                                  _selectedCategoryId = hasSubs
+                                      ? null
+                                      : root.id;
+                                });
+                              },
+                              child: Container(
+                                width: 90,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                ),
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? AppTheme.primaryColor.withOpacity(0.15)
+                                      : Colors.grey.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: isSelected
+                                      ? Border.all(color: AppTheme.primaryColor)
+                                      : null,
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      root.iconData,
+                                      size: 28,
+                                      color: root.colorValue,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      root.name,
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontSize: 11),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            category.icon,
-                            size: 28,
-                            color: AppTheme.primaryColor,
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            category.name,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                        ],
-                      ),
-                    ),
+
+                      /// 🔹 SUBCATEGORIES
+                      if (_selectedRootId != null)
+                        Builder(
+                          builder: (_) {
+                            final children = subs
+                                .where((s) => s.parentId == _selectedRootId)
+                                .toList();
+
+                            if (children.isEmpty) return const SizedBox();
+
+                            return SizedBox(
+                              height: 80,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                children: children.map((sub) {
+                                  final isSelected =
+                                      _selectedCategoryId == sub.id;
+
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedCategoryId = sub.id;
+                                      });
+                                    },
+                                    child: Container(
+                                      width: 80,
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                      ),
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppTheme.primaryColor.withOpacity(
+                                                0.2,
+                                              )
+                                            : Colors.grey.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: isSelected
+                                            ? Border.all(
+                                                color: AppTheme.primaryColor,
+                                              )
+                                            : null,
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            sub.iconData,
+                                            size: 22,
+                                            color: sub.colorValue,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            sub.name,
+                                            textAlign: TextAlign.center,
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                            ),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            );
+                          },
+                        ),
+                    ],
                   );
-                }).toList(),
+                },
               ),
             ),
+
             const SizedBox(height: 12),
 
-            // Дата начала
+            /// 🔹 Дата
             ListTile(
               title: const Text('Дата первого платежа'),
               subtitle: Text(
@@ -177,11 +291,13 @@ class _PlannedFormDialogState extends ConsumerState<PlannedFormDialog> {
                   firstDate: DateTime(2020),
                   lastDate: DateTime(2030),
                 );
-                if (picked != null) setState(() => _selectedDate = picked);
+                if (picked != null) {
+                  setState(() => _selectedDate = picked);
+                }
               },
             ),
 
-            // Периодичность
+            /// 🔹 Периодичность
             DropdownButtonFormField<String>(
               value: _recurrence,
               decoration: const InputDecoration(
@@ -189,17 +305,11 @@ class _PlannedFormDialogState extends ConsumerState<PlannedFormDialog> {
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'none', child: Text('📅 Один раз')),
-                DropdownMenuItem(value: 'daily', child: Text('🔄 Ежедневно')),
-                DropdownMenuItem(
-                  value: 'weekly',
-                  child: Text('📆 Еженедельно'),
-                ),
-                DropdownMenuItem(
-                  value: 'monthly',
-                  child: Text('🗓️ Ежемесячно'),
-                ),
-                DropdownMenuItem(value: 'yearly', child: Text('🎂 Ежегодно')),
+                DropdownMenuItem(value: 'none', child: Text('Один раз')),
+                DropdownMenuItem(value: 'daily', child: Text('Ежедневно')),
+                DropdownMenuItem(value: 'weekly', child: Text('Еженедельно')),
+                DropdownMenuItem(value: 'monthly', child: Text('Ежемесячно')),
+                DropdownMenuItem(value: 'yearly', child: Text('Ежегодно')),
               ],
               onChanged: (value) => setState(() => _recurrence = value!),
             ),
@@ -212,41 +322,57 @@ class _PlannedFormDialogState extends ConsumerState<PlannedFormDialog> {
           child: const Text('Отмена'),
         ),
         ElevatedButton(
-          onPressed: isValid ? () => _save(context) : null,
-          style: ElevatedButton.styleFrom(
-            minimumSize: const Size(100, 40),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+          onPressed: _isValid ? () => _save(context) : null,
           child: const Text('Сохранить'),
         ),
       ],
     );
   }
 
+  /// 🔥 категории
+  AutoDisposeFutureProvider<List<CategoryModel>> _categoriesProvider(
+    bool isExpense,
+  ) {
+    return FutureProvider.autoDispose((ref) async {
+      final repo = ref.watch(categoriesRepositoryProvider);
+
+      final roots = await repo.getRootCategories(isExpense);
+      final subs = await repo.getAllSubcategories(isExpense);
+
+      return [...roots, ...subs].where((c) => !c.isArchived).toList();
+    });
+  }
+
+  bool get _isValid {
+    final amount = double.tryParse(_amountController.text);
+    return _titleController.text.trim().isNotEmpty &&
+        amount != null &&
+        amount > 0 &&
+        _selectedCategoryId != null;
+  }
+
   void _save(BuildContext context) async {
     final repo = ref.read(plannedRepositoryProvider);
     final amount = double.parse(_amountController.text);
 
+    if (_selectedCategoryId == null) return;
+
     if (widget.existingPayment != null) {
-      // Редактирование
       final updated = widget.existingPayment!.copyWith(
         title: _titleController.text.trim(),
         amount: amount,
-        categoryId: _selectedCategoryId,
+        categoryId: _selectedCategoryId!,
         isExpense: _isExpense,
         startDate: _selectedDate,
         recurrence: _recurrence,
       );
       await repo.updatePlannedPayment(updated);
     } else {
-      // Создание нового
       final newPayment = PlannedPaymentModel(
         id: 'planned_${DateTime.now().millisecondsSinceEpoch}',
         title: _titleController.text.trim(),
         amount: amount,
-        categoryId: _selectedCategoryId,
+        categoryId: _selectedCategoryId!,
         isExpense: _isExpense,
         startDate: _selectedDate,
         recurrence: _recurrence,
@@ -255,6 +381,9 @@ class _PlannedFormDialogState extends ConsumerState<PlannedFormDialog> {
       await repo.insertPlannedPayment(newPayment);
     }
 
-    if (mounted) Navigator.pop(context);
+    if (mounted) {
+      ref.invalidate(plannedPaymentsListProvider);
+      Navigator.pop(context);
+    }
   }
 }

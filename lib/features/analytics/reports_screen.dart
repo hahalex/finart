@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../common/providers/categories_provider.dart';
 import '../analytics/providers/analytics_provider.dart';
-import '../transactions/providers/categories_provider.dart';
 import 'widgets/report_stat_card.dart';
 import 'widgets/recommendation_tile.dart';
 import '../transactions/providers/transactions_notifier.dart';
@@ -16,7 +16,12 @@ class ReportsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final transactions = ref.watch(transactionsProvider);
     final categoryExpenses = ref.watch(categoryExpensesFilteredProvider);
-    final categories = ref.watch(categoriesProvider);
+
+    // 🔹 НОВОЕ: allCategoriesProvider возвращает AsyncValue
+    final categoriesAsync = ref.watch(allCategoriesProvider);
+
+    // 🔹 Извлекаем список категорий (или пустой список, если ещё не загружены)
+    final categories = categoriesAsync.value ?? [];
 
     final totalIncome = AnalyticsCalculator.totalIncome(transactions);
     final totalExpense = AnalyticsCalculator.totalExpense(transactions);
@@ -25,7 +30,7 @@ class ReportsScreen extends ConsumerWidget {
     final recommendations = AnalyticsCalculator.generateRecommendations(
       transactions,
       categoryExpenses,
-      categories,
+      categories, // ✅ Теперь передаём извлечённый список
     );
 
     return SafeArea(
@@ -51,6 +56,13 @@ class ReportsScreen extends ConsumerWidget {
           ...recommendations.map(
             (rec) => RecommendationTile(recommendation: rec),
           ),
+
+          /// 🔹 Индикатор загрузки категорий (опционально)
+          if (categoriesAsync.isLoading && categories.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator.adaptive()),
+            ),
         ],
       ),
     );

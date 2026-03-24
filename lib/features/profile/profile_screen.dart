@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'providers/user_provider.dart';
 import 'domain/user_model.dart';
 import 'widgets/profile_action_tile.dart';
+import '../../features/categories/categories_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -46,6 +47,23 @@ class ProfileScreen extends ConsumerWidget {
             icon: Icons.lock,
             title: 'Сменить пароль',
             onTap: () {},
+          ),
+
+          /// 🔹 НОВОЕ: Управление категориями
+          ProfileActionTile(
+            icon: Icons.category,
+            title: 'Категории',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CategoriesScreen(),
+                  settings: const RouteSettings(
+                    arguments: true,
+                  ), // true = расходы
+                ),
+              );
+            },
           ),
           ProfileActionTile(
             icon: Icons.settings,

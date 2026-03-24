@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../common/providers/navigation_provider.dart';
-import '../transactions/providers/transactions_notifier.dart';
-import '../transactions/providers/categories_provider.dart';
+import '../../common/providers/categories_provider.dart';
 import '../../common/models/category_model.dart';
 import '../../common/utils/app_theme.dart';
-import '../planned/presentation/planned_list_screen.dart';
 import '../../common/widgets/category_picker.dart';
+import '../transactions/providers/transactions_notifier.dart';
+import '../planned/presentation/planned_list_screen.dart';
+import '../categories/categories_screen.dart';
 
-/// Экран добавления дохода или расхода (упрощённый)
 class AddTransactionScreen extends ConsumerStatefulWidget {
   const AddTransactionScreen({super.key});
 
@@ -33,10 +33,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = ref
-        .watch(categoriesProvider)
-        .where((c) => c.isExpense == isExpense)
-        .toList();
+    final categoriesAsync = ref.watch(allCategoriesProvider);
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -46,7 +43,6 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         foregroundColor: Theme.of(context).textTheme.bodyLarge?.color,
-        // ✅ Кнопка перехода к предстоящим платежам (как на экране Записи)
         actions: [
           IconButton(
             icon: const Icon(Icons.event, size: 22),
@@ -56,30 +52,18 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 MaterialPageRoute(builder: (_) => const PlannedListScreen()),
               );
             },
-            tooltip: 'Предстоящие платежи',
           ),
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              /// Переключатель: Расход / Доход
-              ToggleButtons(
+        child: Column(
+          children: [
+            /// 🔹 Переключатель
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: ToggleButtons(
                 isSelected: [isExpense, !isExpense],
                 borderRadius: BorderRadius.circular(12),
-                selectedColor: Colors.white,
-                fillColor: isExpense
-                    ? AppTheme.expenseColor
-                    : AppTheme.incomeColor,
-                color: Theme.of(context).textTheme.bodyLarge?.color,
-                borderColor: isExpense
-                    ? AppTheme.expenseColor
-                    : AppTheme.incomeColor,
-                selectedBorderColor: isExpense
-                    ? AppTheme.expenseColor
-                    : AppTheme.incomeColor,
                 onPressed: (index) {
                   setState(() {
                     isExpense = index == 0;
@@ -97,13 +81,16 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                   ),
                 ],
               ),
+            ),
 
-              const SizedBox(height: 24),
-
-              /// Ввод суммы
-              TextField(
+            /// 🔹 Сумма
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
                 controller: amountController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 32,
@@ -112,76 +99,89 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 decoration: const InputDecoration(
                   hintText: '0 ₽',
                   border: InputBorder.none,
-                  hintStyle: TextStyle(color: Colors.grey),
                 ),
               ),
+            ),
 
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-              /// 🔹 Категории (новый пикер с поддержкой подкатегорий)
-              Text('Категория', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 220, // подгоните под дизайн
-                child: CategoryPicker(
-                  isExpense: isExpense,
-                  selectedCategory: selectedCategory,
-                  onSelected: (category) {
-                    setState(() {
-                      selectedCategory = category;
-                    });
+            /// 🔹 Категории
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                height: 220,
+                child: categoriesAsync.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator.adaptive()),
+                  error: (err, _) => Center(child: Text('Ошибка: $err')),
+                  data: (categories) {
+                    final filtered = categories
+                        .where((c) => c.isExpense == isExpense && !c.isArchived)
+                        .toList();
+
+                    if (filtered.isEmpty) {
+                      return Center(
+                        child: TextButton(
+                          onPressed: () => _navigateToCategories(context),
+                          child: const Text('Создать категории'),
+                        ),
+                      );
+                    }
+
+                    return CategoryPicker(
+                      isExpense: isExpense,
+                      selectedCategory: selectedCategory,
+                      onSelected: (c) => setState(() => selectedCategory = c),
+                      mode: CategoryPickerMode.grid,
+                    );
                   },
-                  mode: CategoryPickerMode.grid,
                 ),
               ),
+            ),
 
-              const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-              /// Описание
-              TextField(
+            /// 🔹 Описание
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
                 controller: descriptionController,
                 decoration: const InputDecoration(
-                  hintText: 'Описание (необязательно)',
+                  hintText: 'Описание',
                   border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 14,
-                  ),
                 ),
               ),
+            ),
 
-              const Spacer(),
+            const Spacer(),
 
-              /// Кнопка сохранения
-              ElevatedButton(
-                onPressed: _saveTransaction,
+            /// 🔹 Кнопка сохранить
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: ElevatedButton(
+                onPressed: _canSave ? _saveTransaction : null,
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 56),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
                 ),
                 child: const Icon(Icons.check, size: 32),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// Сохранение обычной транзакции
-  void _saveTransaction() {
-    if (selectedCategory == null) {
-      _showError('Выберите категорию');
-      return;
-    }
-
+  bool get _canSave {
     final amount = double.tryParse(amountController.text);
-    if (amount == null || amount <= 0) {
-      _showError('Введите корректную сумму');
+    return selectedCategory != null && amount != null && amount > 0;
+  }
+
+  void _saveTransaction() {
+    final amount = double.tryParse(amountController.text);
+
+    if (selectedCategory == null || amount == null || amount <= 0) {
+      _showError('Заполни все поля');
       return;
     }
 
@@ -191,31 +191,47 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           amount: amount,
           categoryId: selectedCategory!.id,
           isExpense: isExpense,
-          description: descriptionController.text.isEmpty
+          description: descriptionController.text.trim().isEmpty
               ? null
-              : descriptionController.text,
+              : descriptionController.text.trim(),
         );
 
-    // Возвращаемся на вкладку "Записи"
+    /// 🔥 ВАЖНО: сначала меняем вкладку
     ref.read(bottomNavIndexProvider.notifier).state = 0;
+
+    /// 🔥 потом закрываем экран БЕЗ конфликтов
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+
+    /// 🔥 обновляем категории (если добавляли новые)
+    ref.invalidate(allCategoriesProvider);
+
     _clearForm();
   }
 
-  /// Показать ошибку
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppTheme.expenseColor,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
-  }
-
-  /// Очистка формы
   void _clearForm() {
     amountController.clear();
     descriptionController.clear();
     selectedCategory = null;
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _navigateToCategories(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CategoriesScreen(),
+        settings: RouteSettings(arguments: isExpense),
+      ),
+    ).then((_) {
+      /// 🔥 обязательно обновляем категории после возврата
+      ref.invalidate(allCategoriesProvider);
+    });
   }
 }

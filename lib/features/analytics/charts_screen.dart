@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:collection/collection.dart';
 
+import '../../common/providers/categories_provider.dart';
 import '../analytics/providers/analytics_provider.dart';
-import '../transactions/providers/categories_provider.dart';
 import 'widgets/expenses_chart_placeholder.dart';
 import 'widgets/category_expense_tile.dart';
-import 'widgets/category_expenses_pie_chart.dart'; // <-- импорт PieChart
+import 'widgets/category_expenses_pie_chart.dart';
 
 /// Экран "Графики"
 class ChartsScreen extends ConsumerWidget {
@@ -16,7 +16,12 @@ class ChartsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final monthlyExpenses = ref.watch(monthlyExpensesFilteredProvider);
     final categoryExpenses = ref.watch(categoryExpensesProvider);
-    final categories = ref.watch(categoriesProvider);
+
+    // 🔹 НОВОЕ: allCategoriesProvider возвращает AsyncValue
+    final categoriesAsync = ref.watch(allCategoriesProvider);
+
+    // 🔹 Извлекаем список категорий (или пустой список, если ещё не загружены)
+    final categories = categoriesAsync.value ?? [];
 
     final colors = [
       Colors.blue,
@@ -29,7 +34,6 @@ class ChartsScreen extends ConsumerWidget {
     ];
 
     final categoryColors = <String, Color>{};
-
     for (var i = 0; i < categoryExpenses.length; i++) {
       categoryColors[categoryExpenses[i].categoryId] =
           colors[i % colors.length];
@@ -97,7 +101,7 @@ class ChartsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
 
-          /// Список категорий
+          /// 🔹 Список категорий с обработкой асинхронных данных
           ...categoryExpenses.map((expense) {
             final category = categories.firstWhereOrNull(
               (c) => c.id == expense.categoryId,
@@ -107,9 +111,16 @@ class ChartsScreen extends ConsumerWidget {
             return CategoryExpenseTile(
               expense: expense,
               categoryName: category?.name ?? 'Неизвестно',
-              color: color, // добавляем поле color в Tile
+              color: color,
             );
           }),
+
+          /// 🔹 Индикатор загрузки категорий (опционально)
+          if (categoriesAsync.isLoading && categories.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: CircularProgressIndicator.adaptive()),
+            ),
         ],
       ),
     );

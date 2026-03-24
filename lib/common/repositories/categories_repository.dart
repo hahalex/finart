@@ -50,7 +50,6 @@ class CategoriesRepository {
     return rows.map(_fromTableData).toList();
   }
 
-  /// 🔹 НОВОЕ: иерархия для UI
   Future<Map<CategoryModel, List<CategoryModel>>> getCategoriesHierarchy(
     bool isExpense,
   ) async {
@@ -58,9 +57,9 @@ class CategoriesRepository {
     final result = <CategoryModel, List<CategoryModel>>{};
 
     for (final root in roots) {
-      final subs = await getSubcategories(root.id);
-      result[root] = subs;
+      result[root] = await getSubcategories(root.id);
     }
+
     return result;
   }
 
@@ -72,40 +71,38 @@ class CategoriesRepository {
     return row != null ? _fromTableData(row) : null;
   }
 
-  /// ✅ Проверка: используется ли категория в транзакциях
   Future<bool> isCategoryUsed(String categoryId) async {
     final rows = await (_db.select(
       _db.transactionsTable,
     )..where((t) => t.categoryId.equals(categoryId))).get();
+
     return rows.isNotEmpty;
   }
 
-  /// ✅ Проверка: есть ли категории в БД
   Future<bool> hasCategories() async {
     final rows = await (_db.select(_db.categoriesTable)..limit(1)).get();
     return rows.isNotEmpty;
   }
 
   // ============================================================================
-  // ✏️ CRUD
+  // ✏️ CRUD — ВСЁ через Value()
   // ============================================================================
 
   Future<void> insertCategory(CategoryModel category) async {
     await _db
         .into(_db.categoriesTable)
         .insert(
-          CategoriesTableCompanion.insert(
-            // ✅ .insert() → сырые значения!
-            id: category.id,
-            name: category.name,
-            iconCode: category.iconCode,
-            isExpense: category.isExpense,
-            parentId: category.parentId,
-            color: category.color,
-            isCustom: category.isCustom,
-            isArchived: category.isArchived,
-            order: category.order,
-            aiTag: category.aiTag,
+          CategoriesTableCompanion(
+            id: Value(category.id),
+            name: Value(category.name),
+            iconCode: Value(category.iconCode),
+            isExpense: Value(category.isExpense),
+            color: Value(category.color),
+            parentId: Value(category.parentId),
+            isCustom: Value(category.isCustom),
+            isArchived: Value(category.isArchived),
+            order: Value(category.order),
+            aiTag: Value(category.aiTag),
           ),
         );
   }
@@ -115,11 +112,10 @@ class CategoriesRepository {
       _db.categoriesTable,
     )..where((t) => t.id.equals(category.id))).write(
       CategoriesTableCompanion(
-        // ✅ Обычный конструктор → с Value()
         name: Value(category.name),
         iconCode: Value(category.iconCode),
-        parentId: Value(category.parentId),
         color: Value(category.color),
+        parentId: Value(category.parentId),
         isCustom: Value(category.isCustom),
         isArchived: Value(category.isArchived),
         order: Value(category.order),
@@ -134,24 +130,71 @@ class CategoriesRepository {
         'Нельзя архивировать: категория используется в транзакциях',
       );
     }
+
     await (_db.update(_db.categoriesTable)..where((t) => t.id.equals(id)))
         .write(const CategoriesTableCompanion(isArchived: Value(true)));
   }
 
   Future<void> deleteCategory(String id) async {
     final category = await getCategoryById(id);
-    if (category == null) throw Exception('Категория не найдена');
-    if (!category.isCustom)
+
+    if (category == null) {
+      throw Exception('Категория не найдена');
+    }
+
+    if (!category.isCustom) {
       throw Exception('Нельзя удалить системную категорию');
+    }
+
     if (await isCategoryUsed(id)) {
       throw Exception('Нельзя удалить: категория используется в транзакциях');
     }
 
     final subs = await getSubcategories(id);
+
     for (final sub in subs) {
       await archiveCategory(sub.id);
     }
+
     await (_db.delete(_db.categoriesTable)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// 🔹 Подкатегории, у которых нет родителя (или родитель не найден)
+  Future<List<CategoryModel>> getOrphanedSubcategories(bool isExpense) async {
+    // Сначала получаем все валидные корневые категории
+    final validParents =
+        await (_db.select(_db.categoriesTable)
+              ..where((t) => t.isExpense.equals(isExpense))
+              ..where((t) => t.parentId.isNull())
+              ..where((t) => t.isArchived.equals(false)))
+            .get()
+            .then((rows) => rows.map((r) => r.id).toSet());
+
+    // Теперь ищем подкатегории, чей родитель НЕ в списке валидных
+    final rows =
+        await (_db.select(_db.categoriesTable)
+              ..where((t) => t.isExpense.equals(isExpense))
+              ..where((t) => t.parentId.isNotNull())
+              ..where((t) => t.isArchived.equals(false)))
+            .get();
+
+    return rows
+        .where((r) => r.parentId != null && !validParents.contains(r.parentId))
+        .map(_fromTableData)
+        .toList();
+  }
+
+  /// 🔹 Все подкатегории (для отдельного экрана)
+  Future<List<CategoryModel>> getAllSubcategories(bool isExpense) async {
+    final rows =
+        await (_db.select(_db.categoriesTable)
+              ..where((t) => t.isExpense.equals(isExpense))
+              ..where((t) => t.parentId.isNotNull())
+              ..where((t) => t.isArchived.equals(false))
+              ..orderBy([(t) => OrderingTerm(expression: t.order)]))
+            .get();
+
+    return rows.map(_fromTableData).toList();
   }
 
   // ============================================================================

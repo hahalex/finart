@@ -8,8 +8,8 @@ import '../../../common/utils/app_theme.dart';
 import '../../../common/utils/date_grouping.dart';
 import '../../../common/widgets/date_header.dart';
 import '../../../common/providers/planned_repository_provider.dart';
+import '../../../common/providers/categories_provider.dart'; // ✅ НОВЫЙ импорт из common/
 
-import '../../transactions/providers/categories_provider.dart';
 import '../providers/planned_ui_providers.dart';
 import '../widgets/planned_tile.dart';
 
@@ -26,7 +26,12 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
   Widget build(BuildContext context) {
     final filter = ref.watch(plannedFilterProvider);
     final paymentsAsync = ref.watch(plannedPaymentsListProvider(filter));
-    final categories = ref.watch(categoriesProvider);
+
+    // 🔹 НОВОЕ: allCategoriesProvider возвращает AsyncValue
+    final categoriesAsync = ref.watch(allCategoriesProvider);
+
+    // 🔹 Извлекаем список категорий (или пустой список, если ещё не загружены)
+    final categories = categoriesAsync.value ?? [];
 
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
@@ -178,6 +183,7 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
             children: [
               DateHeader(label: entry.key),
               ...entry.value.map((payment) {
+                // 🔹 Поиск категории с поддержкой подкатегорий
                 final category = categories.firstWhere(
                   (c) => c.id == payment.categoryId,
                   orElse: () => CategoryModel(
@@ -185,8 +191,8 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                     name: 'Неизвестно',
                     iconCode: Icons
                         .category_outlined
-                        .codePoint, // ✅ codePoint, не IconData
-                    isExpense: true,
+                        .codePoint, // ✅ int, не IconData!
+                    isExpense: payment.isExpense,
                     color: 0xFF90A4AE, // ✅ обязательно указывать цвет
                   ),
                 );
@@ -206,7 +212,7 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
     return const SizedBox.shrink();
   }
 
-  /// ✅ Диалог добавления нового платежа — упрощённый, без сложных провайдеров
+  /// ✅ Диалог добавления нового платежа
   void _showAddDialog(BuildContext context) {
     // Локальные переменные для формы
     String title = '';
@@ -221,8 +227,9 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final dialogCategories = ref
-                .read(categoriesProvider)
+            // 🔹 Получаем категории из нового провайдера
+            final allCats = ref.read(allCategoriesProvider).value ?? [];
+            final dialogCategories = allCats
                 .where((c) => c.isExpense == dialogIsExpense)
                 .toList();
 
@@ -307,6 +314,7 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
+                                  // 🔹 ИСПРАВЛЕНО: cat.iconData вместо cat.icon
                                   Icon(
                                     cat.iconData,
                                     size: 24,
@@ -417,7 +425,6 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
     );
   }
 
-  /// Диалог редактирования (можно сделать аналогично)
   /// ✅ Диалог редактирования: выбор между "Изменить" и "Завершить"
   void _showEditDialog(BuildContext context, PlannedPaymentModel payment) {
     showDialog(
@@ -449,19 +456,14 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
         ),
         backgroundColor: AppTheme.backgroundColor,
         actions: [
-          // Кнопка "Отмена"
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Отмена'),
           ),
-          // Кнопка "✏️ Изменить"
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Закрываем первый диалог
-              _showEditFormDialog(
-                context,
-                payment,
-              ); // Открываем форму редактирования
+              Navigator.pop(context);
+              _showEditFormDialog(context, payment);
             },
             style: TextButton.styleFrom(foregroundColor: AppTheme.primaryColor),
             child: const Row(
@@ -473,7 +475,6 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
               ],
             ),
           ),
-          // Кнопка "✓ Завершить"
           TextButton(
             onPressed: () async {
               final repo = ref.read(plannedRepositoryProvider);
@@ -500,7 +501,6 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
 
   /// ✅ Форма редактирования запланированного платежа
   void _showEditFormDialog(BuildContext context, PlannedPaymentModel payment) {
-    // Локальные переменные с предзаполненными значениями
     String title = payment.title;
     double amount = payment.amount;
     String selectedCategoryId = payment.categoryId;
@@ -513,8 +513,9 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            final dialogCategories = ref
-                .read(categoriesProvider)
+            // 🔹 Получаем категории из нового провайдера
+            final allCats = ref.read(allCategoriesProvider).value ?? [];
+            final dialogCategories = allCats
                 .where((c) => c.isExpense == dialogIsExpense)
                 .toList();
 
@@ -603,6 +604,7 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
+                                  // 🔹 ИСПРАВЛЕНО: cat.iconData вместо cat.icon
                                   Icon(
                                     cat.iconData,
                                     size: 24,
@@ -643,7 +645,7 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                       },
                     ),
 
-                    // Периодичность (с "Ежедневно")
+                    // Периодичность
                     DropdownButtonFormField<String>(
                       value: dialogRecurrence,
                       decoration: const InputDecoration(
@@ -697,10 +699,8 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                           );
                           await repo.updatePlannedPayment(updated);
                           if (context.mounted) {
-                            Navigator.pop(dialogContext); // Закрываем форму
-                            ref.invalidate(
-                              plannedPaymentsListProvider,
-                            ); // Обновляем список
+                            Navigator.pop(dialogContext);
+                            ref.invalidate(plannedPaymentsListProvider);
                           }
                         },
                   child: const Text('Сохранить'),

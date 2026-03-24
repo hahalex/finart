@@ -16,13 +16,13 @@ class CategoriesTable extends Table {
   @override
   Set<Column> get primaryKey => {id};
 
-  // ✅ ИНДЕКСЫ: только raw SQL для Drift 2.x
+  // ✅ ИНДЕКСЫ: только raw SQL (без columns: [])
   @override
   List<Index> get indexes => [
-    Index('idx_parent', 'CREATE INDEX idx_parent ON categories (parentId)'),
+    Index('idx_parent', 'CREATE INDEX idx_parent ON categories (parent_id)'),
     Index(
-      'idx_expense_archived',
-      'CREATE INDEX idx_expense_archived ON categories (isExpense, isArchived)',
+      'idx_exp_arch',
+      'CREATE INDEX idx_exp_arch ON categories (is_expense, is_archived)',
     ),
   ];
 }
