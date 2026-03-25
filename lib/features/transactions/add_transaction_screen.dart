@@ -9,6 +9,7 @@ import '../../common/widgets/category_picker.dart';
 import '../transactions/providers/transactions_notifier.dart';
 import '../planned/presentation/planned_list_screen.dart';
 import '../categories/categories_screen.dart';
+import 'ai_categorization_screen.dart';
 
 class AddTransactionScreen extends ConsumerStatefulWidget {
   const AddTransactionScreen({super.key});
@@ -51,6 +52,23 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                 context,
                 MaterialPageRoute(builder: (_) => const PlannedListScreen()),
               );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.auto_awesome, size: 22),
+            onPressed: () async {
+              final result = await Navigator.push<CategoryModel>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AiCategorizationScreen(isExpense: isExpense),
+                ),
+              );
+
+              if (result != null) {
+                setState(() {
+                  selectedCategory = result;
+                });
+              }
             },
           ),
         ],
