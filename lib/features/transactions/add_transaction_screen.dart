@@ -59,9 +59,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             onPressed: () async {
               final result = await Navigator.push<CategoryModel>(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => AiCategorizationScreen(isExpense: isExpense),
-                ),
+                MaterialPageRoute(builder: (_) => AiCategorizationScreen()),
               );
 
               if (result != null) {

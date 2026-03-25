@@ -6,9 +6,7 @@ import '../transactions/providers/transactions_notifier.dart';
 import 'providers/ai_provider.dart';
 
 class AiCategorizationScreen extends ConsumerStatefulWidget {
-  final bool isExpense;
-
-  const AiCategorizationScreen({super.key, required this.isExpense});
+  const AiCategorizationScreen({super.key});
 
   @override
   ConsumerState<AiCategorizationScreen> createState() =>
@@ -22,57 +20,88 @@ class _AiCategorizationScreenState
   List<Map<String, dynamic>> results = [];
   bool isLoading = false;
 
+  /// ============================================================
+  /// 🔥 ЗАПУСК AI
+  /// ============================================================
   Future<void> _runAI() async {
     final text = controller.text.trim();
     if (text.isEmpty) return;
 
     setState(() => isLoading = true);
 
-    final categories = await ref.read(allCategoriesProvider.future);
+    try {
+      final categories = await ref.read(allCategoriesProvider.future);
 
-    final filtered = categories
-        .where((c) => c.isExpense == widget.isExpense && !c.isArchived)
-        .toList();
+      /// ✅ ВСЕ категории (и доходы, и расходы)
+      final allActiveCategories = categories
+          .where((c) => !c.isArchived)
+          .toList();
 
-    final service = ref.read(aiServiceProvider);
+      final service = ref.read(aiServiceProvider);
 
-    final data = await service.categorizeBatch(
-      text: text,
-      categories: filtered,
-    );
+      final data = await service.categorizeBatch(
+        text: text,
+        categories: allActiveCategories,
+      );
 
-    setState(() {
-      results = data;
-      isLoading = false;
-    });
+      /// ❗ БЕЗ ФИЛЬТРАЦИИ — берём всё как есть
+      setState(() {
+        results = data;
+        isLoading = false;
+      });
+    } catch (e) {
+      debugPrint('💥 AI SCREEN ERROR: $e');
+      setState(() => isLoading = false);
+    }
   }
 
+  /// ============================================================
+  /// 🔥 СОХРАНЕНИЕ ВСЕХ ТРАНЗАКЦИЙ
+  /// ============================================================
   void _saveAll() {
-    for (final item in results) {
-      if (item['amount'] == null) continue;
+    final notifier = ref.read(transactionsProvider.notifier);
 
-      ref
-          .read(transactionsProvider.notifier)
-          .addTransaction(
-            amount: item['amount'],
-            categoryId: item['category_id'] ?? '',
-            isExpense: item['is_expense'] ?? widget.isExpense,
-            description: item['text'],
-          );
+    for (final item in results) {
+      final amount = item['amount'];
+      final isExpense = item['is_expense'];
+
+      /// защита от кривых данных
+      if (amount == null || isExpense == null) continue;
+
+      notifier.addTransaction(
+        amount: amount,
+        categoryId: item['category_id'] ?? '',
+        isExpense: isExpense,
+        description: item['text'],
+      );
     }
 
     Navigator.pop(context);
   }
 
+  /// ============================================================
+  /// UI
+  /// ============================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('AI категоризация')),
+      appBar: AppBar(
+        title: const Text('AI категоризация'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.clear),
+            onPressed: () {
+              controller.clear();
+              setState(() => results.clear());
+            },
+          ),
+        ],
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            /// 🔹 Большое поле
+            /// 🔹 ВВОД
             TextField(
               controller: controller,
               maxLines: 8,
@@ -85,30 +114,44 @@ class _AiCategorizationScreenState
 
             const SizedBox(height: 16),
 
-            /// 🔹 Кнопка AI
-            ElevatedButton(
-              onPressed: isLoading ? null : _runAI,
-              child: isLoading
-                  ? const CircularProgressIndicator()
-                  : const Text('Обработать список'),
+            /// 🔹 КНОПКА AI
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: isLoading ? null : _runAI,
+                child: isLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Обработать список'),
+              ),
             ),
 
             const SizedBox(height: 16),
 
-            /// 🔹 РЕЗУЛЬТАТЫ
+            /// 🔹 РЕЗУЛЬТАТЫ (ВСЕ ВМЕСТЕ)
             Expanded(
               child: results.isEmpty
                   ? const Center(child: Text('Нет данных'))
-                  : ListView.builder(
+                  : ListView.separated(
                       itemCount: results.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
                       itemBuilder: (context, index) {
                         final item = results[index];
+                        final isExpense = item['is_expense'] == true;
 
                         return ListTile(
-                          leading: const Icon(Icons.auto_awesome),
+                          leading: Icon(
+                            isExpense
+                                ? Icons.arrow_upward
+                                : Icons.arrow_downward,
+                            color: isExpense ? Colors.red : Colors.green,
+                          ),
                           title: Text(item['text'] ?? ''),
                           subtitle: Text(
-                            'Сумма: ${item['amount']} | Категория: ${item['category_id']}',
+                            'Сумма: ${item['amount']} | Категория: ${item['category_id'] ?? '—'}',
                           ),
                         );
                       },
@@ -117,12 +160,15 @@ class _AiCategorizationScreenState
 
             /// 🔹 СОХРАНИТЬ ВСЁ
             if (results.isNotEmpty)
-              ElevatedButton(
-                onPressed: _saveAll,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 56),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _saveAll,
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 56),
+                  ),
+                  child: const Text('Добавить все операции'),
                 ),
-                child: const Text('Добавить все операции'),
               ),
           ],
         ),
