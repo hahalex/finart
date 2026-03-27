@@ -36,12 +36,16 @@ void main() async {
 //   await _testDb.close();
 // }
 
+final GlobalKey<ScaffoldMessengerState> messengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
 class FinArtApp extends StatelessWidget {
   const FinArtApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      scaffoldMessengerKey: messengerKey,
       title: 'FinArt',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
