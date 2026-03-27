@@ -5,6 +5,7 @@ import '../../common/providers/categories_provider.dart';
 import '../transactions/providers/transactions_notifier.dart';
 import 'providers/ai_provider.dart';
 import '../../../main.dart';
+import '../../common/services/ai_categorization_service.dart';
 
 class AiCategorizationScreen extends ConsumerStatefulWidget {
   const AiCategorizationScreen({super.key});
@@ -29,10 +30,7 @@ class _AiCategorizationScreenState
   void _showMessage(String text) {
     final messenger = messengerKey.currentState;
 
-    if (messenger == null) {
-      debugPrint('❌ NO MESSENGER');
-      return;
-    }
+    if (messenger == null) return;
 
     messenger.clearSnackBars();
     messenger.showSnackBar(
@@ -44,7 +42,9 @@ class _AiCategorizationScreenState
     );
   }
 
-  /// 🔥 ЛЮБАЯ ОШИБКА = ОДНО СООБЩЕНИЕ
+  // ============================================================
+  // 🚀 AI
+  // ============================================================
   Future<void> _runAI() async {
     final text = controller.text.trim();
     if (text.isEmpty) return;
@@ -53,17 +53,31 @@ class _AiCategorizationScreenState
 
     try {
       final categories = await ref.read(allCategoriesProvider.future);
-
       final active = categories.where((c) => !c.isArchived).toList();
 
       final service = ref.read(aiServiceProvider);
 
-      final data = await service.categorizeBatch(
+      final result = await service.categorizeBatch(
         text: text,
         categories: active,
       );
 
-      final cleaned = data.map((e) {
+      /// ❗ ОБРАБОТКА ОШИБОК
+      if (result.hasError) {
+        switch (result.error) {
+          case AiErrorType.noInternet:
+            _showMessage('Нет интернета');
+            break;
+          case AiErrorType.timeout:
+            _showMessage('AI не ответил');
+            break;
+          default:
+            _showMessage('Ошибка AI');
+        }
+        return;
+      }
+
+      final cleaned = result.data.map((e) {
         return {...e, "text": _cleanText(e['text'] ?? '')};
       }).toList();
 
@@ -76,8 +90,7 @@ class _AiCategorizationScreenState
       debugPrint('💥 AI CRASH: $e');
       debugPrint('$s');
 
-      /// 💥 ВСЕГДА одно сообщение
-      _showMessage('Невозможно подключиться к функции AI');
+      _showMessage('Невозможно подключиться к AI');
     } finally {
       if (mounted) {
         setState(() => isLoading = false);
@@ -85,17 +98,14 @@ class _AiCategorizationScreenState
     }
   }
 
-  void _removeItem(int index) {
-    setState(() {
-      results.removeAt(index);
-    });
-  }
-
+  // ============================================================
+  // ✏️ EDIT (FIXED CURSOR BUG)
+  // ============================================================
   Future<void> _editItem(int index) async {
     final item = results[index];
     final categories = await ref.read(allCategoriesProvider.future);
 
-    String text = item['text'] ?? '';
+    final textController = TextEditingController(text: item['text'] ?? '');
     String? selectedCategory = item['category_id'];
 
     await showDialog(
@@ -107,8 +117,8 @@ class _AiCategorizationScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: TextEditingController(text: text),
-                onChanged: (v) => text = v,
+                controller: textController, // ✅ фикс
+                autofocus: true,
                 decoration: const InputDecoration(labelText: 'Описание'),
               ),
               const SizedBox(height: 12),
@@ -133,7 +143,7 @@ class _AiCategorizationScreenState
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  results[index]['text'] = text;
+                  results[index]['text'] = textController.text;
                   results[index]['category_id'] = selectedCategory;
                 });
                 Navigator.pop(context);
@@ -144,8 +154,19 @@ class _AiCategorizationScreenState
         );
       },
     );
+
+    textController.dispose();
   }
 
+  void _removeItem(int index) {
+    setState(() {
+      results.removeAt(index);
+    });
+  }
+
+  // ============================================================
+  // 💾 SAVE
+  // ============================================================
   void _saveAll() {
     final notifier = ref.read(transactionsProvider.notifier);
 
@@ -166,6 +187,9 @@ class _AiCategorizationScreenState
     Navigator.pop(context);
   }
 
+  // ============================================================
+  // UI
+  // ============================================================
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -187,10 +211,11 @@ class _AiCategorizationScreenState
           children: [
             TextField(
               controller: controller,
-              maxLines: 8,
+              maxLines: 10, // 🔥 увеличили поле
+              textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
                 hintText:
-                    'Пример:\nкофе 3€\nтакси 10€\nпродукты 25€\nзарплата 1000€',
+                    'Вводите каждую транзакцию с новой строки\n\nКофе 300\nТакси 520\nШаурма 350\n\nУчитываются только те категории, которые есть в вашем списке категорий',
                 border: OutlineInputBorder(),
               ),
             ),

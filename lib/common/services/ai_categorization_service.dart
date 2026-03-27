@@ -6,6 +6,18 @@ import 'package:http/http.dart' as http;
 
 import '../models/category_model.dart';
 
+/// Тип ошибки AI
+enum AiErrorType { noInternet, timeout, server, unknown }
+
+class AiResult {
+  final List<Map<String, dynamic>> data;
+  final AiErrorType? error;
+
+  AiResult({required this.data, this.error});
+
+  bool get hasError => error != null;
+}
+
 class AiCategorizationService {
   final String apiKey;
 
@@ -19,78 +31,125 @@ class AiCategorizationService {
       final result = await InternetAddress.lookup(
         'google.com',
       ).timeout(const Duration(seconds: 3));
-      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
     } catch (_) {
       return false;
     }
   }
 
-  Future<List<Map<String, dynamic>>> categorizeBatch({
+  // ============================================================
+  // 🔁 RETRY
+  // ============================================================
+  Future<http.Response> _postWithRetry(
+    Uri uri,
+    Map<String, dynamic> body, {
+    int retries = 2,
+  }) async {
+    int attempt = 0;
+
+    while (true) {
+      try {
+        attempt++;
+        print('🔁 AI REQUEST ATTEMPT: $attempt');
+
+        final response = await http
+            .post(
+              uri,
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode(body),
+            )
+            .timeout(const Duration(seconds: 20));
+
+        if (response.statusCode == 200) {
+          return response;
+        }
+
+        print('⚠️ HTTP ERROR: ${response.statusCode}');
+
+        if (attempt > retries) return response;
+      } on TimeoutException {
+        print('⏱️ TIMEOUT attempt $attempt');
+        if (attempt > retries) rethrow;
+      } on SocketException {
+        print('🌐 SOCKET ERROR attempt $attempt');
+        if (attempt > retries) rethrow;
+      }
+
+      await Future.delayed(const Duration(seconds: 1));
+    }
+  }
+
+  // ============================================================
+  // 🚀 ОСНОВНОЙ МЕТОД
+  // ============================================================
+  Future<AiResult> categorizeBatch({
     required String text,
     required List<CategoryModel> categories,
   }) async {
     if (text.trim().isEmpty) {
-      print('❌ AI: empty input');
-      return [];
+      print('❌ EMPTY INPUT');
+      return AiResult(data: []);
     }
 
-    /// ============================================================
-    /// 🌐 1. ПРОВЕРКА ИНТЕРНЕТА
-    /// ============================================================
+    /// 🌐 Интернет
     final hasInternet = await _hasInternet();
-
     if (!hasInternet) {
-      print('🚫 НЕТ ИНТЕРНЕТА — AI ЗАПРОС НЕ ОТПРАВЛЕН');
-      return [];
+      print('🚫 NO INTERNET');
+      return AiResult(data: [], error: AiErrorType.noInternet);
     }
-
-    print('🌐 Интернет есть, отправляем запрос...');
 
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey',
     );
 
-    /// ============================================================
-    /// 📦 2. КАТЕГОРИИ
-    /// ============================================================
     final filtered = categories.where((c) => !c.isArchived).toList();
-
-    print('\n📦 RAW CATEGORIES (${filtered.length}):');
-    for (final c in filtered) {
-      print(
-        ' - id=${c.id} | name=${c.name} | parent=${c.parentId} | expense=${c.isExpense}',
-      );
-    }
+    final validIds = filtered.map((c) => c.id).toSet();
 
     final tree = _buildCategoryTreeSafe(filtered);
     final prettyTree = const JsonEncoder.withIndent('  ').convert(tree);
 
-    print('\n🌳 CATEGORY TREE:\n$prettyTree');
-
-    final validIds = filtered.map((c) => c.id).toSet();
-
-    /// ============================================================
-    /// 🧠 3. PROMPT
-    /// ============================================================
+    // ============================================================
+    // 🔥 УМНЫЙ PROMPT (КЛЮЧЕВОЕ)
+    // ============================================================
     final prompt =
         '''
-Ты — строгая система анализа финансовых операций.
+Ты — система категоризации финансовых операций.
 
-ВЕРНИ ТОЛЬКО JSON. БЕЗ ТЕКСТА.
+❗ ВЕРНИ ТОЛЬКО JSON (без текста).
 
 ЗАДАЧА:
-Для каждой строки:
+Для КАЖДОЙ строки:
 - извлеки text
 - извлеки amount
 - определи is_expense
-- выбери category_id
+- ОБЯЗАТЕЛЬНО выбери category_id
 
-ПРАВИЛА:
-- Каждая строка = отдельная операция
+❗ ГЛАВНОЕ ПРАВИЛО:
+category_id НИКОГДА НЕ ДОЛЖЕН БЫТЬ null
+
+❗ ИНТЕЛЛЕКТУАЛЬНАЯ ЛОГИКА:
+Если в тексте:
+- указаны магазины (Пятёрочка, Lidl, Maxima, Rimi и т.д.)
+→ определи ЧТО обычно там покупают
+→ отнеси к подходящей категории (например: продукты)
+
+Если:
+"Пятёрочка 1500"
+→ это продукты
+
+Если:
+"Steam 2000"
+→ это игры / развлечения
+
+Если:
+"McDonalds 500"
+→ это еда
+
+❗ ВАЖНО:
+- Даже если не уверен — выбери САМУЮ БЛИЗКУЮ категорию
+- Никогда не оставляй category_id пустым
 - Используй ТОЛЬКО id из списка
-- Доход → is_expense=false
-- Расход → is_expense=true
-- Если не уверен → category_id=null
 
 ТЕКСТ:
 $text
@@ -102,53 +161,44 @@ $prettyTree
 [
   {
     "text": "строка",
-    "category_id": "id или null",
-    "amount": число или null,
+    "category_id": "обязательно id",
+    "amount": число,
     "is_expense": true или false
   }
 ]
 ''';
 
-    print('\n🚀 AI REQUEST:\n$prompt');
+    print('\n🚀 PROMPT:\n$prompt');
 
     try {
-      final response = await http
-          .post(
-            uri,
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              "contents": [
-                {
-                  "parts": [
-                    {"text": prompt},
-                  ],
-                },
-              ],
-              "generationConfig": {
-                "temperature": 0,
-                "response_mime_type": "application/json",
-              },
-            }),
-          )
-          .timeout(const Duration(seconds: 20)); // ✅ 20 СЕКУНД
+      final response = await _postWithRetry(uri, {
+        "contents": [
+          {
+            "parts": [
+              {"text": prompt},
+            ],
+          },
+        ],
+        "generationConfig": {
+          "temperature": 0,
+          "response_mime_type": "application/json",
+        },
+      });
 
-      print('\n📡 RAW RESPONSE:\n${response.body}');
+      print('\n📡 RESPONSE:\n${response.body}');
 
       final data = jsonDecode(response.body);
 
       final textResponse =
           data['candidates']?[0]?['content']?['parts']?[0]?['text'];
 
-      print('\n🧠 AI TEXT RESPONSE:\n$textResponse');
-
       if (textResponse == null) {
-        print('❌ AI: пустой ответ');
-        return [];
+        return AiResult(data: [], error: AiErrorType.server);
       }
 
-      /// ============================================================
-      /// 🔧 ПАРСИНГ JSON
-      /// ============================================================
+      // ============================================================
+      // 🔧 ПАРСИНГ
+      // ============================================================
       List<dynamic> decoded;
 
       try {
@@ -156,15 +206,14 @@ $prettyTree
       } catch (_) {
         final match = RegExp(r'\[.*\]', dotAll: true).firstMatch(textResponse);
         if (match == null) {
-          print('❌ AI: JSON не найден');
-          return [];
+          return AiResult(data: [], error: AiErrorType.server);
         }
         decoded = jsonDecode(match.group(0)!);
       }
 
-      /// ============================================================
-      /// 🧹 НОРМАЛИЗАЦИЯ
-      /// ============================================================
+      // ============================================================
+      // 🧹 НОРМАЛИЗАЦИЯ + ЖЁСТКИЙ FALLBACK
+      // ============================================================
       final result = decoded
           .whereType<Map<String, dynamic>>()
           .map((e) {
@@ -177,25 +226,16 @@ $prettyTree
               amount = double.tryParse(rawAmount.replaceAll(',', '.'));
             }
 
-            String? categoryId = e['category_id']?.toString();
             final isExpense = e['is_expense'] == true;
 
-            /// fallback для доходов
+            String? categoryId = e['category_id']?.toString();
+
+            /// 🔥 ЖЁСТКИЙ FALLBACK (НИКОГДА НЕ NULL)
             if (categoryId == null || !validIds.contains(categoryId)) {
-              if (!isExpense) {
-                categoryId = filtered
-                    .where((c) => !c.isExpense)
-                    .map((c) => c.id)
-                    .cast<String?>()
-                    .firstWhere((id) => id != null, orElse: () => null);
-              } else {
-                categoryId = null;
-              }
+              categoryId = _fallbackCategory(filtered, isExpense);
             }
 
-            print(
-              '🔍 PARSED: text=${e['text']} | cat=$categoryId | amount=$amount | expense=$isExpense',
-            );
+            print('🔍 FINAL: ${e['text']} → $categoryId | $amount');
 
             return {
               "text": e['text']?.toString(),
@@ -210,24 +250,34 @@ $prettyTree
           })
           .toList();
 
-      print('\n🎯 FINAL RESULT:\n$result\n');
+      print('\n🎯 RESULT:\n$result\n');
 
-      return result;
+      return AiResult(data: result);
     } on TimeoutException {
-      print('⏱️ TIMEOUT: AI не ответил за 20 секунд');
-      return [];
+      return AiResult(data: [], error: AiErrorType.timeout);
     } on SocketException {
-      print('🌐 ОШИБКА СЕТИ');
-      return [];
-    } catch (e, stack) {
-      print('💥 AI ERROR: $e');
-      print(stack);
-      return [];
+      return AiResult(data: [], error: AiErrorType.noInternet);
+    } catch (e) {
+      print('💥 ERROR: $e');
+      return AiResult(data: [], error: AiErrorType.unknown);
     }
   }
 
   // ============================================================
-  // 🌳 ДЕРЕВО КАТЕГОРИЙ
+  // 🔥 FALLBACK КАТЕГОРИЯ
+  // ============================================================
+  String _fallbackCategory(List<CategoryModel> categories, bool isExpense) {
+    final filtered = categories.where((c) => c.isExpense == isExpense);
+
+    if (filtered.isNotEmpty) {
+      return filtered.first.id;
+    }
+
+    return categories.first.id;
+  }
+
+  // ============================================================
+  // 🌳 ДЕРЕВО + KEYWORDS
   // ============================================================
   Map<String, dynamic> _buildCategoryTreeSafe(List<CategoryModel> categories) {
     final Map<String, List<Map<String, dynamic>>> subMap = {};
