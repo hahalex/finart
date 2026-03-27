@@ -10,10 +10,18 @@ import 'transactions_table.dart';
 import 'user_table.dart';
 import 'planned_payments_table.dart';
 
+import '../data/local/db/ai_learning_table.dart';
+
 part 'app_database.g.dart';
 
 @DriftDatabase(
-  tables: [CategoriesTable, TransactionsTable, UserTable, PlannedPaymentsTable],
+  tables: [
+    CategoriesTable,
+    TransactionsTable,
+    UserTable,
+    PlannedPaymentsTable,
+    AiLearning,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());

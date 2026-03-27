@@ -29,7 +29,6 @@ class _AiCategorizationScreenState
 
   void _showMessage(String text) {
     final messenger = messengerKey.currentState;
-
     if (messenger == null) return;
 
     messenger.clearSnackBars();
@@ -62,7 +61,7 @@ class _AiCategorizationScreenState
         categories: active,
       );
 
-      /// ❗ ОБРАБОТКА ОШИБОК
+      /// ❗ ошибки, но данные всё равно могут быть
       if (result.hasError) {
         switch (result.error) {
           case AiErrorType.noInternet:
@@ -74,7 +73,6 @@ class _AiCategorizationScreenState
           default:
             _showMessage('Ошибка AI');
         }
-        return;
       }
 
       final cleaned = result.data.map((e) {
@@ -99,7 +97,7 @@ class _AiCategorizationScreenState
   }
 
   // ============================================================
-  // ✏️ EDIT (FIXED CURSOR BUG)
+  // ✏️ EDIT
   // ============================================================
   Future<void> _editItem(int index) async {
     final item = results[index];
@@ -117,7 +115,7 @@ class _AiCategorizationScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: textController, // ✅ фикс
+                controller: textController,
                 autofocus: true,
                 decoration: const InputDecoration(labelText: 'Описание'),
               ),
@@ -165,24 +163,35 @@ class _AiCategorizationScreenState
   }
 
   // ============================================================
-  // 💾 SAVE
+  // 🧠 ОБУЧЕНИЕ + СОХРАНЕНИЕ
   // ============================================================
   void _saveAll() {
     final notifier = ref.read(transactionsProvider.notifier);
+    final aiService = ref.read(aiServiceProvider);
 
     for (final item in results) {
       final amount = item['amount'];
       final isExpense = item['is_expense'];
+      final text = item['text'];
+      final categoryId = item['category_id'];
 
-      if (amount == null || isExpense == null) continue;
+      if (amount == null || isExpense == null || text == null) continue;
 
+      /// 💾 сохраняем транзакцию
       notifier.addTransaction(
         amount: amount,
-        categoryId: item['category_id'] ?? '',
+        categoryId: categoryId ?? '',
         isExpense: isExpense,
-        description: item['text'],
+        description: text,
       );
+
+      /// 🧠 ОБУЧАЕМ AI
+      if (categoryId != null) {
+        aiService.saveMapping(text, categoryId);
+      }
     }
+
+    _showMessage('Сохранено и обучено 🎉');
 
     Navigator.pop(context);
   }
@@ -211,11 +220,11 @@ class _AiCategorizationScreenState
           children: [
             TextField(
               controller: controller,
-              maxLines: 10, // 🔥 увеличили поле
+              maxLines: 10,
               textInputAction: TextInputAction.newline,
               decoration: const InputDecoration(
                 hintText:
-                    'Вводите каждую транзакцию с новой строки\n\nКофе 300\nТакси 520\nШаурма 350\n\nУчитываются только те категории, которые есть в вашем списке категорий',
+                    'Каждая строка — отдельная операция\n\nПример:\nКофе 300\nТакси 520\nПятёрочка 1500',
                 border: OutlineInputBorder(),
               ),
             ),

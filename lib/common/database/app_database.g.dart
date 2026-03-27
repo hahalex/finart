@@ -1935,6 +1935,331 @@ class PlannedPaymentsTableCompanion
   }
 }
 
+class $AiLearningTable extends AiLearning
+    with TableInfo<$AiLearningTable, AiLearningData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AiLearningTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keywordMeta = const VerificationMeta(
+    'keyword',
+  );
+  @override
+  late final GeneratedColumn<String> keyword = GeneratedColumn<String>(
+    'keyword',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
+    'category_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _usageCountMeta = const VerificationMeta(
+    'usageCount',
+  );
+  @override
+  late final GeneratedColumn<int> usageCount = GeneratedColumn<int>(
+    'usage_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    keyword,
+    categoryId,
+    usageCount,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'ai_learning';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AiLearningData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('keyword')) {
+      context.handle(
+        _keywordMeta,
+        keyword.isAcceptableOrUnknown(data['keyword']!, _keywordMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keywordMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryIdMeta);
+    }
+    if (data.containsKey('usage_count')) {
+      context.handle(
+        _usageCountMeta,
+        usageCount.isAcceptableOrUnknown(data['usage_count']!, _usageCountMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => const {};
+  @override
+  AiLearningData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AiLearningData(
+      keyword: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}keyword'],
+      )!,
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_id'],
+      )!,
+      usageCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}usage_count'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AiLearningTable createAlias(String alias) {
+    return $AiLearningTable(attachedDatabase, alias);
+  }
+}
+
+class AiLearningData extends DataClass implements Insertable<AiLearningData> {
+  /// ключевое слово ("грин грин", "пятёрочка")
+  final String keyword;
+
+  /// категория
+  final String categoryId;
+
+  /// сколько раз использовалось (будет полезно позже)
+  final int usageCount;
+  final DateTime createdAt;
+  const AiLearningData({
+    required this.keyword,
+    required this.categoryId,
+    required this.usageCount,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['keyword'] = Variable<String>(keyword);
+    map['category_id'] = Variable<String>(categoryId);
+    map['usage_count'] = Variable<int>(usageCount);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  AiLearningCompanion toCompanion(bool nullToAbsent) {
+    return AiLearningCompanion(
+      keyword: Value(keyword),
+      categoryId: Value(categoryId),
+      usageCount: Value(usageCount),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory AiLearningData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AiLearningData(
+      keyword: serializer.fromJson<String>(json['keyword']),
+      categoryId: serializer.fromJson<String>(json['categoryId']),
+      usageCount: serializer.fromJson<int>(json['usageCount']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'keyword': serializer.toJson<String>(keyword),
+      'categoryId': serializer.toJson<String>(categoryId),
+      'usageCount': serializer.toJson<int>(usageCount),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  AiLearningData copyWith({
+    String? keyword,
+    String? categoryId,
+    int? usageCount,
+    DateTime? createdAt,
+  }) => AiLearningData(
+    keyword: keyword ?? this.keyword,
+    categoryId: categoryId ?? this.categoryId,
+    usageCount: usageCount ?? this.usageCount,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  AiLearningData copyWithCompanion(AiLearningCompanion data) {
+    return AiLearningData(
+      keyword: data.keyword.present ? data.keyword.value : this.keyword,
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      usageCount: data.usageCount.present
+          ? data.usageCount.value
+          : this.usageCount,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiLearningData(')
+          ..write('keyword: $keyword, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('usageCount: $usageCount, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(keyword, categoryId, usageCount, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AiLearningData &&
+          other.keyword == this.keyword &&
+          other.categoryId == this.categoryId &&
+          other.usageCount == this.usageCount &&
+          other.createdAt == this.createdAt);
+}
+
+class AiLearningCompanion extends UpdateCompanion<AiLearningData> {
+  final Value<String> keyword;
+  final Value<String> categoryId;
+  final Value<int> usageCount;
+  final Value<DateTime> createdAt;
+  final Value<int> rowid;
+  const AiLearningCompanion({
+    this.keyword = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.usageCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AiLearningCompanion.insert({
+    required String keyword,
+    required String categoryId,
+    this.usageCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : keyword = Value(keyword),
+       categoryId = Value(categoryId);
+  static Insertable<AiLearningData> custom({
+    Expression<String>? keyword,
+    Expression<String>? categoryId,
+    Expression<int>? usageCount,
+    Expression<DateTime>? createdAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (keyword != null) 'keyword': keyword,
+      if (categoryId != null) 'category_id': categoryId,
+      if (usageCount != null) 'usage_count': usageCount,
+      if (createdAt != null) 'created_at': createdAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AiLearningCompanion copyWith({
+    Value<String>? keyword,
+    Value<String>? categoryId,
+    Value<int>? usageCount,
+    Value<DateTime>? createdAt,
+    Value<int>? rowid,
+  }) {
+    return AiLearningCompanion(
+      keyword: keyword ?? this.keyword,
+      categoryId: categoryId ?? this.categoryId,
+      usageCount: usageCount ?? this.usageCount,
+      createdAt: createdAt ?? this.createdAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (keyword.present) {
+      map['keyword'] = Variable<String>(keyword.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<String>(categoryId.value);
+    }
+    if (usageCount.present) {
+      map['usage_count'] = Variable<int>(usageCount.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AiLearningCompanion(')
+          ..write('keyword: $keyword, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('usageCount: $usageCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -1946,6 +2271,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $UserTableTable userTable = $UserTableTable(this);
   late final $PlannedPaymentsTableTable plannedPaymentsTable =
       $PlannedPaymentsTableTable(this);
+  late final $AiLearningTable aiLearning = $AiLearningTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1955,6 +2281,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     transactionsTable,
     userTable,
     plannedPaymentsTable,
+    aiLearning,
   ];
 }
 
@@ -2978,6 +3305,191 @@ typedef $$PlannedPaymentsTableTableProcessedTableManager =
       PlannedPaymentsTableData,
       PrefetchHooks Function()
     >;
+typedef $$AiLearningTableCreateCompanionBuilder =
+    AiLearningCompanion Function({
+      required String keyword,
+      required String categoryId,
+      Value<int> usageCount,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+typedef $$AiLearningTableUpdateCompanionBuilder =
+    AiLearningCompanion Function({
+      Value<String> keyword,
+      Value<String> categoryId,
+      Value<int> usageCount,
+      Value<DateTime> createdAt,
+      Value<int> rowid,
+    });
+
+class $$AiLearningTableFilterComposer
+    extends Composer<_$AppDatabase, $AiLearningTable> {
+  $$AiLearningTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get keyword => $composableBuilder(
+    column: $table.keyword,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get usageCount => $composableBuilder(
+    column: $table.usageCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AiLearningTableOrderingComposer
+    extends Composer<_$AppDatabase, $AiLearningTable> {
+  $$AiLearningTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get keyword => $composableBuilder(
+    column: $table.keyword,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get usageCount => $composableBuilder(
+    column: $table.usageCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AiLearningTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AiLearningTable> {
+  $$AiLearningTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get keyword =>
+      $composableBuilder(column: $table.keyword, builder: (column) => column);
+
+  GeneratedColumn<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get usageCount => $composableBuilder(
+    column: $table.usageCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$AiLearningTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AiLearningTable,
+          AiLearningData,
+          $$AiLearningTableFilterComposer,
+          $$AiLearningTableOrderingComposer,
+          $$AiLearningTableAnnotationComposer,
+          $$AiLearningTableCreateCompanionBuilder,
+          $$AiLearningTableUpdateCompanionBuilder,
+          (
+            AiLearningData,
+            BaseReferences<_$AppDatabase, $AiLearningTable, AiLearningData>,
+          ),
+          AiLearningData,
+          PrefetchHooks Function()
+        > {
+  $$AiLearningTableTableManager(_$AppDatabase db, $AiLearningTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AiLearningTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AiLearningTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AiLearningTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> keyword = const Value.absent(),
+                Value<String> categoryId = const Value.absent(),
+                Value<int> usageCount = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiLearningCompanion(
+                keyword: keyword,
+                categoryId: categoryId,
+                usageCount: usageCount,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String keyword,
+                required String categoryId,
+                Value<int> usageCount = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AiLearningCompanion.insert(
+                keyword: keyword,
+                categoryId: categoryId,
+                usageCount: usageCount,
+                createdAt: createdAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AiLearningTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AiLearningTable,
+      AiLearningData,
+      $$AiLearningTableFilterComposer,
+      $$AiLearningTableOrderingComposer,
+      $$AiLearningTableAnnotationComposer,
+      $$AiLearningTableCreateCompanionBuilder,
+      $$AiLearningTableUpdateCompanionBuilder,
+      (
+        AiLearningData,
+        BaseReferences<_$AppDatabase, $AiLearningTable, AiLearningData>,
+      ),
+      AiLearningData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2990,4 +3502,6 @@ class $AppDatabaseManager {
       $$UserTableTableTableManager(_db, _db.userTable);
   $$PlannedPaymentsTableTableTableManager get plannedPaymentsTable =>
       $$PlannedPaymentsTableTableTableManager(_db, _db.plannedPaymentsTable);
+  $$AiLearningTableTableManager get aiLearning =>
+      $$AiLearningTableTableManager(_db, _db.aiLearning);
 }

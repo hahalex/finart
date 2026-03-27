@@ -6,7 +6,9 @@ import 'package:http/http.dart' as http;
 
 import '../models/category_model.dart';
 
-/// Тип ошибки AI
+/// ============================================================
+/// ❗ ТИПЫ ОШИБОК
+/// ============================================================
 enum AiErrorType { noInternet, timeout, server, unknown }
 
 class AiResult {
@@ -18,14 +20,20 @@ class AiResult {
   bool get hasError => error != null;
 }
 
+/// ============================================================
+/// 🧠 AI SERVICE
+/// ============================================================
 class AiCategorizationService {
   final String apiKey;
 
+  /// 🔥 локальный словарь (будет заменён на БД позже)
+  final Map<String, String> _localMappings = {};
+
   AiCategorizationService({required this.apiKey});
 
-  // ============================================================
-  // 🌐 ПРОВЕРКА ИНТЕРНЕТА
-  // ============================================================
+  /// ============================================================
+  /// 🌐 INTERNET CHECK
+  /// ============================================================
   Future<bool> _hasInternet() async {
     try {
       final result = await InternetAddress.lookup(
@@ -38,9 +46,9 @@ class AiCategorizationService {
     }
   }
 
-  // ============================================================
-  // 🔁 RETRY
-  // ============================================================
+  /// ============================================================
+  /// 🔁 RETRY
+  /// ============================================================
   Future<http.Response> _postWithRetry(
     Uri uri,
     Map<String, dynamic> body, {
@@ -80,23 +88,74 @@ class AiCategorizationService {
     }
   }
 
-  // ============================================================
-  // 🚀 ОСНОВНОЙ МЕТОД
-  // ============================================================
+  /// ============================================================
+  /// 🔥 ПУБЛИЧНЫЙ МЕТОД ДЛЯ СОХРАНЕНИЯ ОБУЧЕНИЯ
+  /// ============================================================
+  void saveMapping(String text, String categoryId) {
+    final key = _normalize(text);
+    _localMappings[key] = categoryId;
+
+    print('🧠 LEARNED: "$key" → $categoryId');
+  }
+
+  /// ============================================================
+  /// 🔎 НОРМАЛИЗАЦИЯ ТЕКСТА
+  /// ============================================================
+  String _normalize(String text) {
+    return text.toLowerCase().replaceAll(RegExp(r'[\d.,€$₽]+'), '').trim();
+  }
+
+  /// ============================================================
+  /// 🚀 ОСНОВНОЙ МЕТОД
+  /// ============================================================
   Future<AiResult> categorizeBatch({
     required String text,
     required List<CategoryModel> categories,
   }) async {
     if (text.trim().isEmpty) {
-      print('❌ EMPTY INPUT');
       return AiResult(data: []);
     }
 
-    /// 🌐 Интернет
+    final lines = text.split('\n');
+
+    /// ============================================================
+    /// 🔥 1. ПРОВЕРКА LOCAL MAPPING
+    /// ============================================================
+    final List<Map<String, dynamic>> localResults = [];
+    final List<String> remainingLines = [];
+
+    for (final line in lines) {
+      final key = _normalize(line);
+
+      if (_localMappings.containsKey(key)) {
+        final categoryId = _localMappings[key];
+
+        final amount = _extractAmount(line);
+
+        localResults.add({
+          "text": line,
+          "category_id": categoryId,
+          "amount": amount,
+          "is_expense": true,
+        });
+
+        print('⚡ LOCAL HIT: $line → $categoryId');
+      } else {
+        remainingLines.add(line);
+      }
+    }
+
+    /// если всё покрыто локально — AI не нужен
+    if (remainingLines.isEmpty) {
+      return AiResult(data: localResults);
+    }
+
+    /// ============================================================
+    /// 🌐 INTERNET
+    /// ============================================================
     final hasInternet = await _hasInternet();
     if (!hasInternet) {
-      print('🚫 NO INTERNET');
-      return AiResult(data: [], error: AiErrorType.noInternet);
+      return AiResult(data: localResults, error: AiErrorType.noInternet);
     }
 
     final uri = Uri.parse(
@@ -109,50 +168,36 @@ class AiCategorizationService {
     final tree = _buildCategoryTreeSafe(filtered);
     final prettyTree = const JsonEncoder.withIndent('  ').convert(tree);
 
-    // ============================================================
-    // 🔥 УМНЫЙ PROMPT (КЛЮЧЕВОЕ)
-    // ============================================================
+    /// ============================================================
+    /// 🔥 УЛУЧШЕННЫЙ PROMPT
+    /// ============================================================
     final prompt =
         '''
-Ты — система категоризации финансовых операций.
+Ты — эксперт по анализу финансовых операций.
 
-❗ ВЕРНИ ТОЛЬКО JSON (без текста).
+❗ ВЕРНИ ТОЛЬКО JSON.
 
-ЗАДАЧА:
-Для КАЖДОЙ строки:
-- извлеки text
-- извлеки amount
-- определи is_expense
-- ОБЯЗАТЕЛЬНО выбери category_id
+ГЛАВНАЯ ЗАДАЧА:
+- определить категорию максимально точно по смыслу
 
-❗ ГЛАВНОЕ ПРАВИЛО:
-category_id НИКОГДА НЕ ДОЛЖЕН БЫТЬ null
+ИНТЕЛЛЕКТУАЛЬНЫЕ ПРАВИЛА:
+- Понимай магазины и бренды:
+  Пятёрочка, Lidl, Rimi → продукты
+  McDonalds → еда
+  Steam → игры
+  Uber → транспорт
 
-❗ ИНТЕЛЛЕКТУАЛЬНАЯ ЛОГИКА:
-Если в тексте:
-- указаны магазины (Пятёрочка, Lidl, Maxima, Rimi и т.д.)
-→ определи ЧТО обычно там покупают
-→ отнеси к подходящей категории (например: продукты)
-
-Если:
-"Пятёрочка 1500"
-→ это продукты
-
-Если:
-"Steam 2000"
-→ это игры / развлечения
-
-Если:
-"McDonalds 500"
-→ это еда
+- Делай вывод по смыслу:
+  "Пятёрочка 1500" → продукты
+  даже если нет слова "еда"
 
 ❗ ВАЖНО:
-- Даже если не уверен — выбери САМУЮ БЛИЗКУЮ категорию
-- Никогда не оставляй category_id пустым
-- Используй ТОЛЬКО id из списка
+- ВСЕГДА выбирай category_id
+- НИКОГДА не ставь null
+- Если не уверен → выбери САМУЮ БЛИЗКУЮ категорию
 
 ТЕКСТ:
-$text
+${remainingLines.join('\n')}
 
 КАТЕГОРИИ:
 $prettyTree
@@ -160,8 +205,8 @@ $prettyTree
 ФОРМАТ:
 [
   {
-    "text": "строка",
-    "category_id": "обязательно id",
+    "text": "...",
+    "category_id": "обязательно",
     "amount": число,
     "is_expense": true или false
   }
@@ -185,20 +230,15 @@ $prettyTree
         },
       });
 
-      print('\n📡 RESPONSE:\n${response.body}');
-
       final data = jsonDecode(response.body);
 
       final textResponse =
           data['candidates']?[0]?['content']?['parts']?[0]?['text'];
 
       if (textResponse == null) {
-        return AiResult(data: [], error: AiErrorType.server);
+        return AiResult(data: localResults, error: AiErrorType.server);
       }
 
-      // ============================================================
-      // 🔧 ПАРСИНГ
-      // ============================================================
       List<dynamic> decoded;
 
       try {
@@ -206,36 +246,23 @@ $prettyTree
       } catch (_) {
         final match = RegExp(r'\[.*\]', dotAll: true).firstMatch(textResponse);
         if (match == null) {
-          return AiResult(data: [], error: AiErrorType.server);
+          return AiResult(data: localResults, error: AiErrorType.server);
         }
         decoded = jsonDecode(match.group(0)!);
       }
 
-      // ============================================================
-      // 🧹 НОРМАЛИЗАЦИЯ + ЖЁСТКИЙ FALLBACK
-      // ============================================================
-      final result = decoded
+      final aiResults = decoded
           .whereType<Map<String, dynamic>>()
           .map((e) {
-            final rawAmount = e['amount'];
-
-            double? amount;
-            if (rawAmount is num) {
-              amount = rawAmount.toDouble();
-            } else if (rawAmount is String) {
-              amount = double.tryParse(rawAmount.replaceAll(',', '.'));
-            }
+            final amount = _parseAmount(e['amount']);
 
             final isExpense = e['is_expense'] == true;
 
             String? categoryId = e['category_id']?.toString();
 
-            /// 🔥 ЖЁСТКИЙ FALLBACK (НИКОГДА НЕ NULL)
             if (categoryId == null || !validIds.contains(categoryId)) {
               categoryId = _fallbackCategory(filtered, isExpense);
             }
-
-            print('🔍 FINAL: ${e['text']} → $categoryId | $amount');
 
             return {
               "text": e['text']?.toString(),
@@ -250,22 +277,38 @@ $prettyTree
           })
           .toList();
 
-      print('\n🎯 RESULT:\n$result\n');
+      final result = [...localResults, ...aiResults];
+
+      print('\n🎯 FINAL RESULT:\n$result\n');
 
       return AiResult(data: result);
     } on TimeoutException {
-      return AiResult(data: [], error: AiErrorType.timeout);
+      return AiResult(data: localResults, error: AiErrorType.timeout);
     } on SocketException {
-      return AiResult(data: [], error: AiErrorType.noInternet);
+      return AiResult(data: localResults, error: AiErrorType.noInternet);
     } catch (e) {
       print('💥 ERROR: $e');
-      return AiResult(data: [], error: AiErrorType.unknown);
+      return AiResult(data: localResults, error: AiErrorType.unknown);
     }
   }
 
-  // ============================================================
-  // 🔥 FALLBACK КАТЕГОРИЯ
-  // ============================================================
+  /// ============================================================
+  /// 🔢 HELPERS
+  /// ============================================================
+  double? _extractAmount(String text) {
+    final match = RegExp(r'(\d+[.,]?\d*)').firstMatch(text);
+    if (match == null) return null;
+    return double.tryParse(match.group(0)!.replaceAll(',', '.'));
+  }
+
+  double? _parseAmount(dynamic raw) {
+    if (raw is num) return raw.toDouble();
+    if (raw is String) {
+      return double.tryParse(raw.replaceAll(',', '.'));
+    }
+    return null;
+  }
+
   String _fallbackCategory(List<CategoryModel> categories, bool isExpense) {
     final filtered = categories.where((c) => c.isExpense == isExpense);
 
@@ -276,9 +319,9 @@ $prettyTree
     return categories.first.id;
   }
 
-  // ============================================================
-  // 🌳 ДЕРЕВО + KEYWORDS
-  // ============================================================
+  /// ============================================================
+  /// 🌳 TREE
+  /// ============================================================
   Map<String, dynamic> _buildCategoryTreeSafe(List<CategoryModel> categories) {
     final Map<String, List<Map<String, dynamic>>> subMap = {};
     final Map<String, CategoryModel> byId = {for (var c in categories) c.id: c};
