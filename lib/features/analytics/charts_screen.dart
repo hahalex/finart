@@ -14,14 +14,33 @@ class ChartsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final monthlyExpenses = ref.watch(monthlyExpensesFilteredProvider);
+    final analyticsType = ref.watch(analyticsTypeProvider);
+    final period = ref.watch(analyticsPeriodProvider);
+    final categoryMode = ref.watch(categoryDisplayModeProvider);
+
+    final chartData = ref.watch(chartDataProvider);
     final categoryExpenses = ref.watch(categoryExpensesProvider);
 
-    // 🔹 НОВОЕ: allCategoriesProvider возвращает AsyncValue
-    final categoriesAsync = ref.watch(allCategoriesProvider);
+    final categories = ref.watch(allCategoriesProvider).value ?? [];
 
-    // 🔹 Извлекаем список категорий (или пустой список, если ещё не загружены)
-    final categories = categoriesAsync.value ?? [];
+    // ===========================
+    // UI helpers
+    // ===========================
+
+    String getTitle() {
+      final isExpense = analyticsType == AnalyticsType.expense;
+
+      switch (period) {
+        case AnalyticsPeriod.day:
+          return isExpense ? 'Расходы по дням' : 'Доходы по дням';
+
+        case AnalyticsPeriod.week:
+          return isExpense ? 'Расходы по неделям' : 'Доходы по неделям';
+
+        case AnalyticsPeriod.month:
+          return isExpense ? 'Расходы по месяцам' : 'Доходы по месяцам';
+      }
+    }
 
     final colors = [
       Colors.blue,
@@ -30,7 +49,7 @@ class ChartsScreen extends ConsumerWidget {
       Colors.orange,
       Colors.purple,
       Colors.teal,
-      Colors.yellow.shade700,
+      Colors.amber,
     ];
 
     final categoryColors = <String, Color>{};
@@ -39,22 +58,61 @@ class ChartsScreen extends ConsumerWidget {
           colors[i % colors.length];
     }
 
+    // ===========================
+    // UI
+    // ===========================
+
     return SafeArea(
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          /// Заголовок
-          Text(
-            'Расходы по месяцам',
-            style: Theme.of(context).textTheme.titleLarge,
+          // ===========================
+          // ДОХОДЫ / РАСХОДЫ
+          // ===========================
+          SegmentedButton<AnalyticsType>(
+            segments: const [
+              ButtonSegment(
+                value: AnalyticsType.expense,
+                label: Text('Расходы'),
+              ),
+              ButtonSegment(value: AnalyticsType.income, label: Text('Доходы')),
+            ],
+            selected: {analyticsType},
+            onSelectionChanged: (value) {
+              ref.read(analyticsTypeProvider.notifier).state = value.first;
+            },
           ),
+
           const SizedBox(height: 16),
 
-          /// График по месяцам
-          ExpensesChartPlaceholder(data: monthlyExpenses),
+          // ===========================
+          // ПЕРИОД (КНОПКА)
+          // ===========================
+          ElevatedButton(
+            onPressed: () {
+              final next = switch (period) {
+                AnalyticsPeriod.day => AnalyticsPeriod.week,
+                AnalyticsPeriod.week => AnalyticsPeriod.month,
+                AnalyticsPeriod.month => AnalyticsPeriod.day,
+              };
+
+              ref.read(analyticsPeriodProvider.notifier).state = next;
+            },
+            child: Text(getTitle()),
+          ),
+
           const SizedBox(height: 16),
 
-          /// Кнопки выбора периода и сброса
+          // ===========================
+          // ГРАФИК
+          // ===========================
+          ExpensesChartPlaceholder(data: chartData),
+
+          const SizedBox(height: 16),
+
+          // ===========================
+          // ВЫБОР ДАТ
+          // ===========================
           Row(
             children: [
               Expanded(
@@ -65,12 +123,13 @@ class ChartsScreen extends ConsumerWidget {
                       firstDate: DateTime(2020),
                       lastDate: DateTime.now(),
                     );
+
                     if (picked != null) {
                       ref.read(selectedDateRangeProvider.notifier).state =
                           picked;
                     }
                   },
-                  child: const Text('Выбрать период'),
+                  child: const Text('Период'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -81,46 +140,88 @@ class ChartsScreen extends ConsumerWidget {
                 onPressed: () {
                   ref.read(selectedDateRangeProvider.notifier).state = null;
                 },
-                child: const Text('Сбросить'),
+                child: const Text('Сброс'),
               ),
             ],
           ),
+
           const SizedBox(height: 24),
 
-          /// PieChart по категориям
+          // ===========================
+          // ФИЛЬТР КАТЕГОРИЙ
+          // ===========================
+          SegmentedButton<CategoryDisplayMode>(
+            segments: const [
+              ButtonSegment(value: CategoryDisplayMode.all, label: Text('Все')),
+              ButtonSegment(
+                value: CategoryDisplayMode.parentOnly,
+                label: Text('Категории'),
+              ),
+              ButtonSegment(
+                value: CategoryDisplayMode.subcategoriesOnly,
+                label: Text('Подкатегории'),
+              ),
+            ],
+            selected: {categoryMode},
+            onSelectionChanged: (value) {
+              ref.read(categoryDisplayModeProvider.notifier).state =
+                  value.first;
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // ===========================
+          // PIE CHART
+          // ===========================
           CategoryExpensesPieChart(
             expenses: categoryExpenses,
             categoryColors: categoryColors,
           ),
-          const SizedBox(height: 24),
 
-          /// Подзаголовок
+          const SizedBox(height: 16),
+
+          // ===========================
+          // СПИСОК КАТЕГОРИЙ
+          // ===========================
           Text(
-            'Расходы по категориям',
+            analyticsType == AnalyticsType.expense
+                ? 'Расходы по категориям'
+                : 'Доходы по категориям',
             style: Theme.of(context).textTheme.titleMedium,
           ),
+
           const SizedBox(height: 8),
 
-          /// 🔹 Список категорий с обработкой асинхронных данных
           ...categoryExpenses.map((expense) {
             final category = categories.firstWhereOrNull(
               (c) => c.id == expense.categoryId,
             );
+
+            final parentCategory = category?.parentId == null
+                ? null
+                : categories.firstWhereOrNull(
+                    (c) => c.id == category!.parentId,
+                  );
+
             final color = categoryColors[expense.categoryId] ?? Colors.grey;
+
+            final totalAmount = categoryExpenses.fold<double>(
+              0,
+              (sum, e) => sum + e.total,
+            );
 
             return CategoryExpenseTile(
               expense: expense,
               categoryName: category?.name ?? 'Неизвестно',
+              parentCategoryName: parentCategory?.name,
+              showParentCategory:
+                  categoryMode == CategoryDisplayMode.subcategoriesOnly &&
+                  category?.isSubcategory == true,
               color: color,
+              totalAmount: totalAmount,
             );
           }),
-
-          /// 🔹 Индикатор загрузки категорий (опционально)
-          if (categoriesAsync.isLoading && categories.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator.adaptive()),
-            ),
         ],
       ),
     );

@@ -15,7 +15,7 @@ class ReportsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final transactions = ref.watch(transactionsProvider);
-    final categoryExpenses = ref.watch(categoryExpensesFilteredProvider);
+    final categoryExpenses = ref.watch(categoryExpensesProvider);
 
     // 🔹 НОВОЕ: allCategoriesProvider возвращает AsyncValue
     final categoriesAsync = ref.watch(allCategoriesProvider);

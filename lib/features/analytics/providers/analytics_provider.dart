@@ -4,110 +4,187 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../common/providers/categories_provider.dart';
 import '../../transactions/providers/transactions_notifier.dart';
+import '../widgets/expenses_chart_placeholder.dart';
 import '../domain/analytics_calculator.dart';
 import '../domain/analytics_models.dart';
 
 // ============================================================================
-// 📊 АНАЛИТИКА: Провайдеры данных
+// 📊 ENUMS ДЛЯ УПРАВЛЕНИЯ АНАЛИТИКОЙ
 // ============================================================================
 
-/// 🔹 Расходы по месяцам
-final monthlyExpensesProvider = Provider<List<MonthlyExpenseData>>((ref) {
-  final transactions = ref.watch(transactionsProvider);
-  return AnalyticsCalculator.expensesByMonth(transactions);
-});
+enum AnalyticsType { expense, income }
 
-/// 🔹 Расходы по категориям
-final categoryExpensesProvider = Provider<List<CategoryExpenseData>>((ref) {
-  final transactions = ref.watch(transactionsProvider);
-  return AnalyticsCalculator.expensesByCategory(transactions);
-});
+enum AnalyticsPeriod { day, week, month }
 
-/// 🔹 Период для фильтрации
+enum CategoryDisplayMode { parentOnly, subcategoriesOnly, all }
+
+// ============================================================================
+// 🎛 STATE PROVIDERS (UI FILTERS)
+// ============================================================================
+
+/// Доходы / Расходы
+final analyticsTypeProvider = StateProvider<AnalyticsType>(
+  (ref) => AnalyticsType.expense,
+);
+
+/// День / Неделя / Месяц
+final analyticsPeriodProvider = StateProvider<AnalyticsPeriod>(
+  (ref) => AnalyticsPeriod.week,
+);
+
+/// Родительские / Подкатегории / Все
+final categoryDisplayModeProvider = StateProvider<CategoryDisplayMode>(
+  (ref) => CategoryDisplayMode.all,
+);
+
+/// Выбранный период дат
 final selectedDateRangeProvider = StateProvider<DateTimeRange?>((ref) => null);
 
-/// 🔹 Расходы по месяцам за выбранный период
-final monthlyExpensesFilteredProvider = Provider<List<MonthlyExpenseData>>((
-  ref,
-) {
-  final transactions = ref.watch(transactionsProvider);
-  final range = ref.watch(selectedDateRangeProvider);
-  return AnalyticsCalculator.expensesByMonthFiltered(
-    transactions,
-    from: range?.start,
-    to: range?.end,
-  );
-});
+// ============================================================================
+// 📈 ОСНОВНЫЕ ДАННЫЕ ДЛЯ ГРАФИКА
+// ============================================================================
 
-/// 🔹 Расходы по категориям за выбранный период
-final categoryExpensesFilteredProvider = Provider<List<CategoryExpenseData>>((
-  ref,
-) {
+final chartDataProvider = Provider<List<ChartPoint>>((ref) {
   final transactions = ref.watch(transactionsProvider);
+  final type = ref.watch(analyticsTypeProvider);
+  final period = ref.watch(analyticsPeriodProvider);
   final range = ref.watch(selectedDateRangeProvider);
-  return AnalyticsCalculator.expensesByCategoryFiltered(
-    transactions,
-    from: range?.start,
-    to: range?.end,
-  );
+
+  final filtered = transactions.where((t) {
+    final matchesType = type == AnalyticsType.expense
+        ? t.isExpense
+        : !t.isExpense;
+
+    final matchesRange =
+        range == null ||
+        (!t.createdAt.isBefore(range.start) && !t.createdAt.isAfter(range.end));
+
+    return matchesType && matchesRange;
+  }).toList();
+
+  switch (period) {
+    case AnalyticsPeriod.day:
+      return AnalyticsCalculator.expensesByDay(filtered);
+
+    case AnalyticsPeriod.week:
+      return AnalyticsCalculator.expensesByWeek(filtered);
+
+    case AnalyticsPeriod.month:
+      return AnalyticsCalculator.expensesByMonth(filtered);
+  }
 });
 
 // ============================================================================
-// 🏆 ТОП-КАТЕГОРИЯ: Исправленная версия (без AsyncNotifier)
+// 🥧 PIE / СПИСОК КАТЕГОРИЙ
 // ============================================================================
 
-/// 🔹 Название топ-категории расходов
-///
-/// Использует .value ?? [] для безопасного извлечения списка категорий из AsyncValue.
-/// Если категории ещё не загружены — вернёт null (экран может показать "Загрузка...").
-final topExpenseCategoryNameProvider = Provider<String?>((ref) {
-  final expenses = ref.watch(categoryExpensesFilteredProvider);
+final categoryExpensesProvider = Provider<List<CategoryExpenseData>>((ref) {
+  final transactions = ref.watch(transactionsProvider);
+  final categories = ref.watch(allCategoriesProvider).value ?? [];
 
-  // 🔹 Извлекаем список категорий из AsyncValue
-  // Если данные ещё не загружены (value == null) — используем пустой список
+  final analyticsType = ref.watch(analyticsTypeProvider);
+
+  final displayMode = ref.watch(categoryDisplayModeProvider);
+
+  final range = ref.watch(selectedDateRangeProvider);
+
+  // 1. фильтр по типу
+  var filtered = transactions.where((tx) {
+    final matchesType = analyticsType == AnalyticsType.expense
+        ? tx.isExpense
+        : !tx.isExpense;
+
+    if (!matchesType) return false;
+
+    if (range != null) {
+      if (tx.createdAt.isBefore(range.start)) {
+        return false;
+      }
+
+      if (tx.createdAt.isAfter(range.end)) {
+        return false;
+      }
+    }
+
+    return true;
+  }).toList();
+
+  // 2. фильтр по категориям
+  final allowedCategoryIds = categories
+      .where((category) {
+        switch (displayMode) {
+          case CategoryDisplayMode.all:
+            return true;
+
+          case CategoryDisplayMode.parentOnly:
+            return !category.isSubcategory;
+
+          case CategoryDisplayMode.subcategoriesOnly:
+            return category.isSubcategory;
+        }
+      })
+      .map((e) => e.id)
+      .toSet();
+
+  filtered = filtered
+      .where((tx) => allowedCategoryIds.contains(tx.categoryId))
+      .toList();
+
+  // 3. группировка по категориям
+  return AnalyticsCalculator.expensesByCategory(filtered);
+});
+
+// ============================================================================
+// 🏆 ТОП КАТЕГОРИЯ
+// ============================================================================
+
+final topCategoryNameProvider = Provider<String?>((ref) {
+  final expenses = ref.watch(categoryExpensesProvider);
+
   final categories = ref.watch(allCategoriesProvider).value ?? [];
 
   if (expenses.isEmpty) return null;
 
-  // Находим категорию с максимальными расходами
   final top = expenses.reduce((a, b) => a.total > b.total ? a : b);
 
-  // Ищем название категории по ID
   final category = categories.firstWhereOrNull((c) => c.id == top.categoryId);
 
   return category?.name;
 });
 
 // ============================================================================
-// 🔄 ДОПОЛНИТЕЛЬНЫЕ ПРОВАЙДЕРЫ (опционально)
+// 🏆 ТОП 3 КАТЕГОРИИ
 // ============================================================================
 
-/// 🔹 Топ-3 категории расходов (названия)
-final top3ExpenseCategoryNamesProvider = Provider<List<String>>((ref) {
-  final expenses = ref.watch(categoryExpensesFilteredProvider);
+final top3CategoryNamesProvider = Provider<List<String>>((ref) {
+  final expenses = ref.watch(categoryExpensesProvider);
+
   final categories = ref.watch(allCategoriesProvider).value ?? [];
 
   if (expenses.isEmpty) return [];
 
-  // Сортируем по убыванию суммы и берём топ-3
   final sorted = [...expenses]..sort((a, b) => b.total.compareTo(a.total));
-  final top3 = sorted.take(3);
 
-  return top3.map((expense) {
+  return sorted.take(3).map((expense) {
     final category = categories.firstWhereOrNull(
       (c) => c.id == expense.categoryId,
     );
+
     return category?.name ?? 'Неизвестно';
   }).toList();
 });
 
-/// 🔹 Процент расходов по топ-категории
-final topExpenseCategoryPercentProvider = Provider<double?>((ref) {
-  final expenses = ref.watch(categoryExpensesFilteredProvider);
+// ============================================================================
+// 📊 ПРОЦЕНТ ТОП КАТЕГОРИИ
+// ============================================================================
+
+final topCategoryPercentProvider = Provider<double?>((ref) {
+  final expenses = ref.watch(categoryExpensesProvider);
 
   if (expenses.isEmpty) return null;
 
   final total = expenses.fold<double>(0, (sum, e) => sum + e.total);
+
   final top = expenses.reduce((a, b) => a.total > b.total ? a : b);
 
   return total > 0 ? (top.total / total * 100).clamp(0, 100) : 0;
