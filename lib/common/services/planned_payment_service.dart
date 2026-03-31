@@ -1,5 +1,4 @@
 import 'dart:developer';
-import 'package:drift/drift.dart'; // Для Value
 
 // ✅ ТОЛЬКО этот импорт — НЕ .g.dart!
 import '../database/app_database.dart';

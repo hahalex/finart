@@ -143,9 +143,9 @@ class TransactionsScreen extends ConsumerWidget {
                             );
 
                             return TransactionTile(
+                              transaction: transaction,
                               title: transaction.description ?? category.name,
                               category: category.name,
-                              // 🔹 NEW: передаём иконку и цвет для красивого отображения
                               categoryIcon: category.iconData,
                               categoryColor: category.colorValue,
                               amount: transaction.amount,

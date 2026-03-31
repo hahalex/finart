@@ -46,4 +46,24 @@ class TransactionsNotifier extends StateNotifier<List<TransactionModel>> {
     // Обновляем состояние
     state = [...state, transaction];
   }
+
+  /// Удаление операции
+  Future<void> removeTransaction(String id) async {
+    final repo = ref.read(transactionsRepositoryProvider);
+    await repo.deleteTransaction(id);
+
+    state = state.where((t) => t.id != id).toList();
+  }
+
+  /// Редактирование операции
+  Future<void> editTransaction(TransactionModel updated) async {
+    final repo = ref.read(transactionsRepositoryProvider);
+
+    await repo.updateTransaction(updated);
+
+    state = [
+      for (final transaction in state)
+        if (transaction.id == updated.id) updated else transaction,
+    ];
+  }
 }

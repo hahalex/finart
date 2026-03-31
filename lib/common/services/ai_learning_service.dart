@@ -34,11 +34,23 @@ class AiLearningService {
 
   // ------------------------------------------------------------
 
+  // ------------------------------------------------------------
+  // нормализация для поиска и обучения
   String _normalize(String text) {
-    return text.toLowerCase().trim();
+    return text
+        .toLowerCase() // к нижнему регистру
+        .replaceAll(RegExp(r'\s+'), ' ') // множественные пробелы → один
+        .trim(); // обрезаем пробелы по краям
   }
 
   String _extractKeyword(String text) {
-    return text.replaceAll(RegExp(r'[\d.,€$₽]+'), '').trim().toLowerCase();
+    final cleaned = text.replaceAll(
+      RegExp(r'[\d.,€$₽]+'),
+      '',
+    ); // убираем цифры и валюту
+    return cleaned
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ') // нормализуем пробелы
+        .trim();
   }
 }

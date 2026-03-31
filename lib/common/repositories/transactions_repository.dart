@@ -47,4 +47,19 @@ class TransactionsRepository {
       _db.transactionsTable,
     )..where((tbl) => tbl.id.equals(id))).go();
   }
+
+  /// Обновить операцию
+  Future<void> updateTransaction(TransactionModel transaction) async {
+    await (_db.update(
+      _db.transactionsTable,
+    )..where((tbl) => tbl.id.equals(transaction.id))).write(
+      TransactionsTableCompanion(
+        amount: Value(transaction.amount),
+        categoryId: Value(transaction.categoryId),
+        description: Value(transaction.description),
+        isExpense: Value(transaction.isExpense),
+        createdAt: Value(transaction.createdAt),
+      ),
+    );
+  }
 }
