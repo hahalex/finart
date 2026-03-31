@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../common/models/recommendation_model.dart';
 import '../../../common/providers/categories_provider.dart';
 import '../../transactions/providers/transactions_notifier.dart';
 import '../widgets/expenses_chart_placeholder.dart';
@@ -9,7 +10,7 @@ import '../domain/analytics_calculator.dart';
 import '../domain/analytics_models.dart';
 
 // ============================================================================
-// 📊 ENUMS ДЛЯ УПРАВЛЕНИЯ АНАЛИТИКОЙ
+// 📊 ENUMS
 // ============================================================================
 
 enum AnalyticsType { expense, income }
@@ -19,48 +20,53 @@ enum AnalyticsPeriod { day, week, month }
 enum CategoryDisplayMode { parentOnly, subcategoriesOnly, all }
 
 // ============================================================================
-// 🎛 STATE PROVIDERS (UI FILTERS)
+// 🎛 UI STATE
 // ============================================================================
 
-/// Доходы / Расходы
 final analyticsTypeProvider = StateProvider<AnalyticsType>(
   (ref) => AnalyticsType.expense,
 );
 
-/// День / Неделя / Месяц
 final analyticsPeriodProvider = StateProvider<AnalyticsPeriod>(
   (ref) => AnalyticsPeriod.week,
 );
 
-/// Родительские / Подкатегории / Все
 final categoryDisplayModeProvider = StateProvider<CategoryDisplayMode>(
   (ref) => CategoryDisplayMode.all,
 );
 
-/// Выбранный период дат
 final selectedDateRangeProvider = StateProvider<DateTimeRange?>((ref) => null);
 
 // ============================================================================
-// 📈 ОСНОВНЫЕ ДАННЫЕ ДЛЯ ГРАФИКА
+// 📈 FILTERED TRANSACTIONS
 // ============================================================================
 
-final chartDataProvider = Provider<List<ChartPoint>>((ref) {
+final filteredTransactionsProvider = Provider((ref) {
   final transactions = ref.watch(transactionsProvider);
   final type = ref.watch(analyticsTypeProvider);
-  final period = ref.watch(analyticsPeriodProvider);
   final range = ref.watch(selectedDateRangeProvider);
 
-  final filtered = transactions.where((t) {
+  return transactions.where((tx) {
     final matchesType = type == AnalyticsType.expense
-        ? t.isExpense
-        : !t.isExpense;
+        ? tx.isExpense
+        : !tx.isExpense;
 
     final matchesRange =
         range == null ||
-        (!t.createdAt.isBefore(range.start) && !t.createdAt.isAfter(range.end));
+        (!tx.createdAt.isBefore(range.start) &&
+            !tx.createdAt.isAfter(range.end));
 
     return matchesType && matchesRange;
   }).toList();
+});
+
+// ============================================================================
+// 📊 CHART DATA
+// ============================================================================
+
+final chartDataProvider = Provider<List<ChartPoint>>((ref) {
+  final filtered = ref.watch(filteredTransactionsProvider);
+  final period = ref.watch(analyticsPeriodProvider);
 
   switch (period) {
     case AnalyticsPeriod.day:
@@ -75,41 +81,14 @@ final chartDataProvider = Provider<List<ChartPoint>>((ref) {
 });
 
 // ============================================================================
-// 🥧 PIE / СПИСОК КАТЕГОРИЙ
+// 🥧 CATEGORY EXPENSES
 // ============================================================================
 
 final categoryExpensesProvider = Provider<List<CategoryExpenseData>>((ref) {
-  final transactions = ref.watch(transactionsProvider);
+  final transactions = ref.watch(filteredTransactionsProvider);
   final categories = ref.watch(allCategoriesProvider).value ?? [];
-
-  final analyticsType = ref.watch(analyticsTypeProvider);
-
   final displayMode = ref.watch(categoryDisplayModeProvider);
 
-  final range = ref.watch(selectedDateRangeProvider);
-
-  // 1. фильтр по типу
-  var filtered = transactions.where((tx) {
-    final matchesType = analyticsType == AnalyticsType.expense
-        ? tx.isExpense
-        : !tx.isExpense;
-
-    if (!matchesType) return false;
-
-    if (range != null) {
-      if (tx.createdAt.isBefore(range.start)) {
-        return false;
-      }
-
-      if (tx.createdAt.isAfter(range.end)) {
-        return false;
-      }
-    }
-
-    return true;
-  }).toList();
-
-  // 2. фильтр по категориям
   final allowedCategoryIds = categories
       .where((category) {
         switch (displayMode) {
@@ -126,21 +105,42 @@ final categoryExpensesProvider = Provider<List<CategoryExpenseData>>((ref) {
       .map((e) => e.id)
       .toSet();
 
-  filtered = filtered
+  final filtered = transactions
       .where((tx) => allowedCategoryIds.contains(tx.categoryId))
       .toList();
 
-  // 3. группировка по категориям
   return AnalyticsCalculator.expensesByCategory(filtered);
 });
 
 // ============================================================================
-// 🏆 ТОП КАТЕГОРИЯ
+// 💰 TOTALS
+// ============================================================================
+
+final totalIncomeProvider = Provider<double>((ref) {
+  final transactions = ref.watch(transactionsProvider);
+
+  return AnalyticsCalculator.totalIncome(transactions);
+});
+
+final totalExpenseProvider = Provider<double>((ref) {
+  final transactions = ref.watch(transactionsProvider);
+
+  return AnalyticsCalculator.totalExpense(transactions);
+});
+
+final balanceProvider = Provider<double>((ref) {
+  final income = ref.watch(totalIncomeProvider);
+  final expense = ref.watch(totalExpenseProvider);
+
+  return income - expense;
+});
+
+// ============================================================================
+// 🏆 TOP CATEGORY
 // ============================================================================
 
 final topCategoryNameProvider = Provider<String?>((ref) {
   final expenses = ref.watch(categoryExpensesProvider);
-
   final categories = ref.watch(allCategoriesProvider).value ?? [];
 
   if (expenses.isEmpty) return null;
@@ -153,12 +153,11 @@ final topCategoryNameProvider = Provider<String?>((ref) {
 });
 
 // ============================================================================
-// 🏆 ТОП 3 КАТЕГОРИИ
+// 🏆 TOP 3
 // ============================================================================
 
 final top3CategoryNamesProvider = Provider<List<String>>((ref) {
   final expenses = ref.watch(categoryExpensesProvider);
-
   final categories = ref.watch(allCategoriesProvider).value ?? [];
 
   if (expenses.isEmpty) return [];
@@ -175,7 +174,7 @@ final top3CategoryNamesProvider = Provider<List<String>>((ref) {
 });
 
 // ============================================================================
-// 📊 ПРОЦЕНТ ТОП КАТЕГОРИИ
+// 📊 TOP CATEGORY PERCENT
 // ============================================================================
 
 final topCategoryPercentProvider = Provider<double?>((ref) {
@@ -188,4 +187,20 @@ final topCategoryPercentProvider = Provider<double?>((ref) {
   final top = expenses.reduce((a, b) => a.total > b.total ? a : b);
 
   return total > 0 ? (top.total / total * 100).clamp(0, 100) : 0;
+});
+
+// ============================================================================
+// 💡 RECOMMENDATIONS
+// ============================================================================
+
+final recommendationsProvider = Provider<List<Recommendation>>((ref) {
+  final transactions = ref.watch(transactionsProvider);
+  final categories = ref.watch(allCategoriesProvider).value ?? [];
+  final categoryExpenses = ref.watch(categoryExpensesProvider);
+
+  return AnalyticsCalculator.generateRecommendations(
+    transactions,
+    categoryExpenses,
+    categories,
+  );
 });

@@ -1,3 +1,5 @@
+import 'package:collection/collection.dart';
+
 import '../../../common/models/transaction_model.dart';
 import '../../../common/models/category_model.dart';
 import '../../../common/models/recommendation_model.dart';
@@ -57,7 +59,6 @@ class AnalyticsCalculator {
 
     for (final tx in transactions) {
       final key = '${tx.createdAt.month}.${tx.createdAt.year}';
-
       map[key] = (map[key] ?? 0) + tx.amount;
     }
 
@@ -67,7 +68,7 @@ class AnalyticsCalculator {
   }
 
   // ==========================================================================
-  // 🥧 ПО КАТЕГОРИЯМ
+  // 🥧 ГРУППИРОВКА ПО КАТЕГОРИЯМ
   // ==========================================================================
 
   static List<CategoryExpenseData> expensesByCategory(
@@ -85,7 +86,7 @@ class AnalyticsCalculator {
   }
 
   // ==========================================================================
-  // 💰 TOTALS
+  // 💰 TOTAL INCOME
   // ==========================================================================
 
   static double totalIncome(
@@ -103,6 +104,10 @@ class AnalyticsCalculator {
         .fold(0.0, (sum, tx) => sum + tx.amount);
   }
 
+  // ==========================================================================
+  // 💸 TOTAL EXPENSE
+  // ==========================================================================
+
   static double totalExpense(
     List<TransactionModel> transactions, {
     DateTime? from,
@@ -119,22 +124,7 @@ class AnalyticsCalculator {
   }
 
   // ==========================================================================
-  // 🏆 TOP CATEGORY
-  // ==========================================================================
-
-  static String? topExpenseCategory(
-    List<CategoryExpenseData> expenses,
-    Map<String, String> categoryNames,
-  ) {
-    if (expenses.isEmpty) return null;
-
-    final top = expenses.reduce((a, b) => a.total > b.total ? a : b);
-
-    return categoryNames[top.categoryId];
-  }
-
-  // ==========================================================================
-  // 💡 RECOMMENDATIONS
+  // 💡 PERSONAL RECOMMENDATIONS ENGINE
   // ==========================================================================
 
   static List<Recommendation> generateRecommendations(
@@ -144,30 +134,123 @@ class AnalyticsCalculator {
     DateTime? from,
     DateTime? to,
   }) {
-    final income = totalIncome(transactions, from: from, to: to);
-
-    final expense = totalExpense(transactions, from: from, to: to);
-
+    final now = DateTime.now();
     final recommendations = <Recommendation>[];
 
-    final diff = income - expense;
-
-    if (diff < -1000) {
-      recommendations.add(
+    if (transactions.isEmpty) {
+      return [
         Recommendation(
-          title: 'Расходы превышают доходы на ${(-diff).toStringAsFixed(0)} ₽',
-          type: RecommendationType.warning,
+          id: 'empty_data',
+          title: 'Недостаточно данных',
+          description: 'Добавьте операции для построения отчётов',
+          type: RecommendationType.info,
+          shownAt: now,
         ),
-      );
-    } else if (diff > 1000) {
+      ];
+    }
+
+    final income = totalIncome(transactions, from: from, to: to);
+    final expense = totalExpense(transactions, from: from, to: to);
+    final balance = income - expense;
+
+    // ==========================================================
+    // 1. Отрицательный баланс
+    // ==========================================================
+
+    if (balance < 0) {
       recommendations.add(
         Recommendation(
-          title: 'Доходы превышают расходы на ${diff.toStringAsFixed(0)} ₽',
-          type: RecommendationType.success,
+          id: 'negative_balance',
+          title:
+              'Расходы превышают доходы на ${balance.abs().toStringAsFixed(0)} ₽',
+          description: 'Рекомендуется сократить необязательные расходы',
+          type: RecommendationType.warning,
+          shownAt: now,
         ),
       );
     }
 
-    return recommendations;
+    // ==========================================================
+    // 2. Хороший профицит
+    // ==========================================================
+
+    if (income > 0 && balance > income * 0.3) {
+      recommendations.add(
+        Recommendation(
+          id: 'positive_balance',
+          title: 'Отличный финансовый баланс',
+          description:
+              'Вы сохраняете ${(balance / income * 100).toStringAsFixed(0)}% дохода',
+          type: RecommendationType.success,
+          shownAt: now,
+        ),
+      );
+    }
+
+    // ==========================================================
+    // 3. Бюджетная нагрузка >90%
+    // ==========================================================
+
+    if (income > 0 && expense >= income * 0.9) {
+      recommendations.add(
+        Recommendation(
+          id: 'high_budget_load',
+          title: 'Высокая нагрузка на бюджет',
+          description: 'Расходы превышают 90% доходов',
+          type: RecommendationType.warning,
+          shownAt: now,
+        ),
+      );
+    }
+
+    // ==========================================================
+    // 4. Доминирующая категория
+    // ==========================================================
+
+    final totalCategoryExpense = categoryExpenses.fold<double>(
+      0,
+      (sum, e) => sum + e.total,
+    );
+
+    for (final categoryExpense in categoryExpenses) {
+      if (totalCategoryExpense == 0) continue;
+
+      final share = categoryExpense.total / totalCategoryExpense;
+
+      if (share > 0.4) {
+        final category = categories.firstWhereOrNull(
+          (c) => c.id == categoryExpense.categoryId,
+        );
+
+        recommendations.add(
+          Recommendation(
+            id: 'dominant_${categoryExpense.categoryId}',
+            title: 'Высокая доля расходов',
+            description:
+                '${category?.name ?? "Категория"} занимает ${(share * 100).toStringAsFixed(0)}% бюджета',
+            type: RecommendationType.tip,
+            shownAt: now,
+          ),
+        );
+      }
+    }
+
+    // ==========================================================
+    // 5. Нет доходов
+    // ==========================================================
+
+    if (income == 0 && expense > 0) {
+      recommendations.add(
+        Recommendation(
+          id: 'no_income',
+          title: 'Доходы не обнаружены',
+          description: 'Проверьте, все ли поступления внесены',
+          type: RecommendationType.info,
+          shownAt: now,
+        ),
+      );
+    }
+
+    return recommendations.take(5).toList();
   }
 }
