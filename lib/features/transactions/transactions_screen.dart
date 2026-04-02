@@ -130,7 +130,7 @@ class TransactionsScreen extends ConsumerWidget {
                         children: [
                           DateHeader(label: entry.key),
                           ...entry.value.map((transaction) {
-                            // 🔹 Поиск категории с поддержкой подкатегорий
+                            // 🔹 Находим категорию транзакции
                             final category = categories.firstWhere(
                               (c) => c.id == transaction.categoryId,
                               orElse: () => CategoryModel(
@@ -142,16 +142,36 @@ class TransactionsScreen extends ConsumerWidget {
                               ),
                             );
 
+                            // 🔹 Определяем название категории с учетом родителя
+                            String categoryTitle = category.name;
+                            if (category.isSubcategory) {
+                              final parentCategory = categories.firstWhere(
+                                (c) => c.id == category.parentId,
+                                orElse: () => CategoryModel(
+                                  id: 'unknown',
+                                  name: '',
+                                  iconCode: Icons.category_outlined.codePoint,
+                                  isExpense: category.isExpense,
+                                  color: 0xFF9E9E9E,
+                                ),
+                              );
+
+                              if (parentCategory.name.isNotEmpty) {
+                                categoryTitle =
+                                    '${category.name} (${parentCategory.name})';
+                              }
+                            }
+
                             return TransactionTile(
                               transaction: transaction,
-                              title: transaction.description ?? category.name,
-                              category: category.name,
+                              title: transaction.description ?? categoryTitle,
+                              category: categoryTitle,
                               categoryIcon: category.iconData,
                               categoryColor: category.colorValue,
                               amount: transaction.amount,
                               isExpense: transaction.isExpense,
                             );
-                          }),
+                          }).toList(),
                         ],
                       );
                     }).toList(),

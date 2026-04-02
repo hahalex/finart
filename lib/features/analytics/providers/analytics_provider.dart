@@ -19,6 +19,9 @@ enum AnalyticsPeriod { day, week, month }
 
 enum CategoryDisplayMode { parentOnly, subcategoriesOnly, all }
 
+/// Новый период для страницы отчетов
+enum ReportPeriod { year, halfYear, quarter, currentMonth, custom }
+
 // ============================================================================
 // 🎛 UI STATE
 // ============================================================================
@@ -35,7 +38,65 @@ final categoryDisplayModeProvider = StateProvider<CategoryDisplayMode>(
   (ref) => CategoryDisplayMode.all,
 );
 
+/// Новый выбранный период для отчётов
+final selectedReportPeriodProvider = StateProvider<ReportPeriod>(
+  (ref) => ReportPeriod.quarter,
+);
+
+/// Кастомный диапазон через календарь
 final selectedDateRangeProvider = StateProvider<DateTimeRange?>((ref) => null);
+
+// ============================================================================
+// 📅 EFFECTIVE DATE RANGE
+// ============================================================================
+
+final effectiveReportRangeProvider = Provider<DateTimeRange>((ref) {
+  final selectedPeriod = ref.watch(selectedReportPeriodProvider);
+  final customRange = ref.watch(selectedDateRangeProvider);
+
+  final now = DateTime.now();
+
+  DateTime startOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  DateTime endOfDay(DateTime date) {
+    return DateTime(date.year, date.month, date.day, 23, 59, 59);
+  }
+
+  switch (selectedPeriod) {
+    case ReportPeriod.year:
+      return DateTimeRange(
+        start: startOfDay(DateTime(now.year - 1, now.month, now.day)),
+        end: endOfDay(now),
+      );
+
+    case ReportPeriod.halfYear:
+      return DateTimeRange(
+        start: startOfDay(DateTime(now.year, now.month - 6, now.day)),
+        end: endOfDay(now),
+      );
+
+    case ReportPeriod.quarter:
+      return DateTimeRange(
+        start: startOfDay(DateTime(now.year, now.month - 3, now.day)),
+        end: endOfDay(now),
+      );
+
+    case ReportPeriod.currentMonth:
+      return DateTimeRange(
+        start: startOfDay(DateTime(now.year, now.month, 1)),
+        end: endOfDay(now),
+      );
+
+    case ReportPeriod.custom:
+      return customRange ??
+          DateTimeRange(
+            start: startOfDay(DateTime(now.year, now.month - 3, now.day)),
+            end: endOfDay(now),
+          );
+  }
+});
 
 // ============================================================================
 // 📈 FILTERED TRANSACTIONS
@@ -44,7 +105,7 @@ final selectedDateRangeProvider = StateProvider<DateTimeRange?>((ref) => null);
 final filteredTransactionsProvider = Provider((ref) {
   final transactions = ref.watch(transactionsProvider);
   final type = ref.watch(analyticsTypeProvider);
-  final range = ref.watch(selectedDateRangeProvider);
+  final range = ref.watch(effectiveReportRangeProvider);
 
   return transactions.where((tx) {
     final matchesType = type == AnalyticsType.expense
@@ -52,9 +113,7 @@ final filteredTransactionsProvider = Provider((ref) {
         : !tx.isExpense;
 
     final matchesRange =
-        range == null ||
-        (!tx.createdAt.isBefore(range.start) &&
-            !tx.createdAt.isAfter(range.end));
+        !tx.createdAt.isBefore(range.start) && !tx.createdAt.isAfter(range.end);
 
     return matchesType && matchesRange;
   }).toList();
@@ -113,19 +172,29 @@ final categoryExpensesProvider = Provider<List<CategoryExpenseData>>((ref) {
 });
 
 // ============================================================================
-// 💰 TOTALS
+// 💰 TOTALS (теперь по выбранному периоду)
 // ============================================================================
 
 final totalIncomeProvider = Provider<double>((ref) {
   final transactions = ref.watch(transactionsProvider);
+  final range = ref.watch(effectiveReportRangeProvider);
 
-  return AnalyticsCalculator.totalIncome(transactions);
+  return AnalyticsCalculator.totalIncome(
+    transactions,
+    from: range.start,
+    to: range.end,
+  );
 });
 
 final totalExpenseProvider = Provider<double>((ref) {
   final transactions = ref.watch(transactionsProvider);
+  final range = ref.watch(effectiveReportRangeProvider);
 
-  return AnalyticsCalculator.totalExpense(transactions);
+  return AnalyticsCalculator.totalExpense(
+    transactions,
+    from: range.start,
+    to: range.end,
+  );
 });
 
 final balanceProvider = Provider<double>((ref) {
@@ -197,10 +266,13 @@ final recommendationsProvider = Provider<List<Recommendation>>((ref) {
   final transactions = ref.watch(transactionsProvider);
   final categories = ref.watch(allCategoriesProvider).value ?? [];
   final categoryExpenses = ref.watch(categoryExpensesProvider);
+  final range = ref.watch(effectiveReportRangeProvider);
 
   return AnalyticsCalculator.generateRecommendations(
     transactions,
     categoryExpenses,
     categories,
+    from: range.start,
+    to: range.end,
   );
 });

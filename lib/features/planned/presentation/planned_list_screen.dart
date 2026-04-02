@@ -8,7 +8,8 @@ import '../../../common/utils/app_theme.dart';
 import '../../../common/utils/date_grouping.dart';
 import '../../../common/widgets/date_header.dart';
 import '../../../common/providers/planned_repository_provider.dart';
-import '../../../common/providers/categories_provider.dart'; // ✅ НОВЫЙ импорт из common/
+import '../../../common/providers/categories_provider.dart';
+import '../presentation/category_selection_screen.dart';
 
 import '../providers/planned_ui_providers.dart';
 import '../widgets/planned_tile.dart';
@@ -27,10 +28,7 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
     final filter = ref.watch(plannedFilterProvider);
     final paymentsAsync = ref.watch(plannedPaymentsListProvider(filter));
 
-    // 🔹 НОВОЕ: allCategoriesProvider возвращает AsyncValue
     final categoriesAsync = ref.watch(allCategoriesProvider);
-
-    // 🔹 Извлекаем список категорий (или пустой список, если ещё не загружены)
     final categories = categoriesAsync.value ?? [];
 
     return Scaffold(
@@ -45,7 +43,6 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Фильтры
             Padding(
               padding: const EdgeInsets.all(16),
               child: ToggleButtons(
@@ -73,35 +70,30 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                 children: const [
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 14),
-                    child: Text('Все', style: TextStyle(fontSize: 14)),
+                    child: Text('Все'),
                   ),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 14),
-                    child: Text('Активные', style: TextStyle(fontSize: 14)),
+                    child: Text('Активные'),
                   ),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 14),
-                    child: Text('Завершённые', style: TextStyle(fontSize: 14)),
+                    child: Text('Завершённые'),
                   ),
                 ],
               ),
             ),
-
-            // Список
             Expanded(
               child: _buildPaymentsList(paymentsAsync, categories, filter),
             ),
           ],
         ),
       ),
-
-      // FAB для добавления
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddDialog(context),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         child: const Icon(Icons.add),
-        tooltip: 'Добавить платёж',
       ),
     );
   }
@@ -116,105 +108,56 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
     }
 
     if (paymentsAsync.hasError) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return Center(child: Text('Ошибка: ${paymentsAsync.error}'));
+    }
+
+    final payments = paymentsAsync.value ?? [];
+
+    if (payments.isEmpty) {
+      return const Center(child: Text('Пока ничего нет'));
+    }
+
+    final grouped = groupItemsByDate(
+      items: payments,
+      dateExtractor: (p) => p.startDate,
+    );
+
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 80),
+      children: grouped.entries.map((entry) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-            const SizedBox(height: 12),
-            Text(
-              'Ошибка: ${paymentsAsync.error}',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            TextButton(
-              onPressed: () => ref.refresh(plannedPaymentsListProvider(filter)),
-              child: const Text('Повторить'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (paymentsAsync.hasValue) {
-      final payments = paymentsAsync.value!;
-
-      if (payments.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                filter == PlannedFilter.active
-                    ? Icons.event_busy
-                    : Icons.inbox_outlined,
-                size: 72,
-                color: Colors.grey[300],
-              ),
-              const SizedBox(height: 20),
-              Text(
-                filter == PlannedFilter.active
-                    ? 'Нет активных платежей'
-                    : 'Пока ничего нет',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.grey[600],
-                  fontWeight: FontWeight.w500,
+            DateHeader(label: entry.key),
+            ...entry.value.map((payment) {
+              final category = categories.firstWhere(
+                (c) => c.id == payment.categoryId,
+                orElse: () => CategoryModel(
+                  id: 'unknown',
+                  name: 'Неизвестно',
+                  iconCode: Icons.category.codePoint,
+                  isExpense: payment.isExpense,
+                  color: 0xFF90A4AE,
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Нажмите + чтобы добавить',
-                style: TextStyle(color: Colors.grey[400], fontSize: 13),
-              ),
-            ],
-          ),
+              );
+
+              return PlannedTile(
+                payment: payment,
+                categoryName: category.name,
+                onEdit: () => _showEditDialog(context, payment),
+                onDelete: () => _confirmDelete(payment.id),
+              );
+            }),
+          ],
         );
-      }
-
-      final groupedPayments = groupItemsByDate(
-        items: payments,
-        dateExtractor: (p) => p.startDate,
-      );
-
-      return ListView(
-        padding: const EdgeInsets.only(bottom: 80),
-        children: groupedPayments.entries.map((entry) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DateHeader(label: entry.key),
-              ...entry.value.map((payment) {
-                // 🔹 Поиск категории с поддержкой подкатегорий
-                final category = categories.firstWhere(
-                  (c) => c.id == payment.categoryId,
-                  orElse: () => CategoryModel(
-                    id: 'unknown',
-                    name: 'Неизвестно',
-                    iconCode: Icons
-                        .category_outlined
-                        .codePoint, // ✅ int, не IconData!
-                    isExpense: payment.isExpense,
-                    color: 0xFF90A4AE, // ✅ обязательно указывать цвет
-                  ),
-                );
-                return PlannedTile(
-                  payment: payment,
-                  categoryName: category.name,
-                  onEdit: () => _showEditDialog(context, payment),
-                  onDelete: () => _confirmDelete(payment.id),
-                );
-              }),
-            ],
-          );
-        }).toList(),
-      );
-    }
-
-    return const SizedBox.shrink();
+      }).toList(),
+    );
   }
 
-  /// ✅ Диалог добавления нового платежа
+  /// =======================
+  /// 🔥 ADD DIALOG
+  /// =======================
   void _showAddDialog(BuildContext context) {
-    // Локальные переменные для формы
     String title = '';
     double amount = 0;
     String? selectedCategoryId;
@@ -224,14 +167,22 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
 
     showDialog(
       context: context,
-      builder: (dialogContext) {
+      builder: (_) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            // 🔹 Получаем категории из нового провайдера
             final allCats = ref.read(allCategoriesProvider).value ?? [];
+
             final dialogCategories = allCats
                 .where((c) => c.isExpense == dialogIsExpense)
                 .toList();
+
+            CategoryModel? selectedCategory = dialogCategories
+                .where((c) => c.id == selectedCategoryId)
+                .cast<CategoryModel?>()
+                .fold<CategoryModel?>(
+                  null,
+                  (prev, el) => prev ?? el,
+                ); // safe firstOrNull
 
             return AlertDialog(
               title: const Text('Новый платёж'),
@@ -239,110 +190,91 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Тип: расход/доход
-                    ToggleButtons(
-                      isSelected: [dialogIsExpense, !dialogIsExpense],
-                      borderRadius: BorderRadius.circular(10),
-                      selectedColor: Colors.white,
-                      fillColor: dialogIsExpense
-                          ? AppTheme.expenseColor
-                          : AppTheme.incomeColor,
-                      onPressed: (idx) =>
-                          setDialogState(() => dialogIsExpense = idx == 0),
-                      children: const [
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('Расход'),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('Доход'),
+                    // 🔹 Кнопки Расход/Доход по центру, меньше и более округлые
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ToggleButtons(
+                          isSelected: [dialogIsExpense, !dialogIsExpense],
+                          borderRadius: BorderRadius.circular(20),
+                          constraints: const BoxConstraints(
+                            minWidth: 70,
+                            minHeight: 36,
+                          ),
+                          selectedColor: Colors.white,
+                          fillColor: dialogIsExpense
+                              ? AppTheme.expenseColor.withOpacity(0.7)
+                              : AppTheme.incomeColor.withOpacity(0.7),
+                          color: Colors.grey[700],
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          onPressed: (i) =>
+                              setDialogState(() => dialogIsExpense = i == 0),
+                          children: const [
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Расход'),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Доход'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 12),
 
-                    // Название
                     TextField(
-                      decoration: const InputDecoration(
-                        labelText: 'Название',
-                        hintText: 'Подписка Яндекс.Плюс',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Название'),
                       onChanged: (v) => title = v,
                     ),
-                    const SizedBox(height: 8),
 
-                    // Сумма
                     TextField(
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Сумма',
-                        hintText: '0 ₽',
-                      ),
+                      decoration: const InputDecoration(labelText: 'Сумма'),
                       onChanged: (v) => amount = double.tryParse(v) ?? 0,
                     ),
+
                     const SizedBox(height: 12),
 
-                    // Категория
-                    Text(
-                      'Категория',
-                      style: Theme.of(context).textTheme.labelLarge,
-                    ),
-                    const SizedBox(height: 6),
-                    SizedBox(
-                      height: 80,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: dialogCategories.map((cat) {
-                          final isSelected = selectedCategoryId == cat.id;
-                          return GestureDetector(
-                            onTap: () => setDialogState(
-                              () => selectedCategoryId = cat.id,
-                            ),
-                            child: Container(
-                              width: 70,
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppTheme.primaryColor.withOpacity(0.15)
-                                    : Colors.grey.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: isSelected
-                                    ? Border.all(color: AppTheme.primaryColor)
-                                    : null,
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // 🔹 ИСПРАВЛЕНО: cat.iconData вместо cat.icon
-                                  Icon(
-                                    cat.iconData,
-                                    size: 24,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    cat.name,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Дата
+                    /// 🔥 ВЫБОР КАТЕГОРИИ
                     ListTile(
                       contentPadding: EdgeInsets.zero,
+                      title: const Text('Категория'),
+                      subtitle: selectedCategory == null
+                          ? const Text('Не выбрана')
+                          : Text(selectedCategory.name),
+                      leading: selectedCategory != null
+                          ? Icon(selectedCategory.iconData)
+                          : const Icon(Icons.category_outlined),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CategorySelectionScreen(
+                              isExpense: dialogIsExpense,
+                            ),
+                          ),
+                        );
+
+                        if (result != null && result is CategoryModel) {
+                          setDialogState(() {
+                            selectedCategoryId = result.id;
+                          });
+                        }
+                      },
+                    ),
+
+                    ListTile(
                       title: const Text('Дата'),
                       subtitle: Text(
                         '${dialogStartDate.day}.${dialogStartDate.month}.${dialogStartDate.year}',
                       ),
-                      trailing: const Icon(Icons.calendar_today),
                       onTap: () async {
                         final picked = await showDatePicker(
                           context: context,
@@ -350,41 +282,10 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                           firstDate: DateTime.now(),
                           lastDate: DateTime(2030),
                         );
-                        if (picked != null)
+                        if (picked != null) {
                           setDialogState(() => dialogStartDate = picked);
+                        }
                       },
-                    ),
-
-                    // Периодичность
-                    DropdownButtonFormField<String>(
-                      value: dialogRecurrence,
-                      decoration: const InputDecoration(
-                        labelText: 'Периодичность',
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'none',
-                          child: Text('📅 Один раз'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'daily',
-                          child: Text('🔄 Ежедневно'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'weekly',
-                          child: Text('📆 Еженедельно'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'monthly',
-                          child: Text('🗓️ Ежемесячно'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'yearly',
-                          child: Text('🎂 Ежегодно'),
-                        ),
-                      ],
-                      onChanged: (v) =>
-                          setDialogState(() => dialogRecurrence = v!),
                     ),
                   ],
                 ),
@@ -399,17 +300,20 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                       ? null
                       : () async {
                           final repo = ref.read(plannedRepositoryProvider);
-                          final newPayment = PlannedPaymentModel(
-                            id: const Uuid().v4(),
-                            title: title.isNotEmpty ? title : 'Без названия',
-                            amount: amount,
-                            categoryId: selectedCategoryId!,
-                            isExpense: dialogIsExpense,
-                            startDate: dialogStartDate,
-                            recurrence: dialogRecurrence,
-                            createdAt: DateTime.now(),
+
+                          await repo.insertPlannedPayment(
+                            PlannedPaymentModel(
+                              id: const Uuid().v4(),
+                              title: title.isNotEmpty ? title : 'Без названия',
+                              amount: amount,
+                              categoryId: selectedCategoryId!,
+                              isExpense: dialogIsExpense,
+                              startDate: dialogStartDate,
+                              recurrence: dialogRecurrence,
+                              createdAt: DateTime.now(),
+                            ),
                           );
-                          await repo.insertPlannedPayment(newPayment);
+
                           if (context.mounted) {
                             Navigator.pop(context);
                             ref.invalidate(plannedPaymentsListProvider);
@@ -431,70 +335,100 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: Text(payment.title),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '💰 ${payment.amount.toStringAsFixed(2)} ₽',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text('📁 Категория: ${payment.categoryId}'),
-            Text(
-              '📅 Дата: ${payment.startDate.day}.${payment.startDate.month}.${payment.startDate.year}',
-            ),
-            Text(
-              '🔄 Периодичность: ${_getRecurrenceLabel(payment.recurrence)}',
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Что хотите сделать?',
-              style: Theme.of(context).textTheme.labelLarge,
-            ),
-          ],
+        content: SizedBox(
+          width: 300, // чуть длиннее
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment:
+                CrossAxisAlignment.center, // выравнивание по центру
+            children: [
+              Text(
+                '💰 ${payment.amount.toStringAsFixed(2)} ₽',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text('📁 Категория: ${payment.categoryId}'),
+              Text(
+                '📅 Дата: ${payment.startDate.day}.${payment.startDate.month}.${payment.startDate.year}',
+              ),
+              Text(
+                '🔄 Периодичность: ${_getRecurrenceLabel(payment.recurrence)}',
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Что хотите сделать?',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 16),
+
+              // Кнопки сверху вниз
+              OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showEditFormDialog(context, payment);
+                },
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: AppTheme.primaryColor),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit, size: 18),
+                    SizedBox(width: 8),
+                    Text('Изменить'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () async {
+                  final repo = ref.read(plannedRepositoryProvider);
+                  await repo.deactivatePlannedPayment(payment.id);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ref.invalidate(plannedPaymentsListProvider);
+                  }
+                },
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.orange),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, size: 18),
+                    SizedBox(width: 8),
+                    Text('Завершить'),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  side: BorderSide(color: Colors.grey.shade400),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text('Отмена'),
+              ),
+            ],
+          ),
         ),
         backgroundColor: AppTheme.backgroundColor,
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showEditFormDialog(context, payment);
-            },
-            style: TextButton.styleFrom(foregroundColor: AppTheme.primaryColor),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.edit, size: 18),
-                SizedBox(width: 4),
-                Text('Изменить'),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              final repo = ref.read(plannedRepositoryProvider);
-              await repo.deactivatePlannedPayment(payment.id);
-              if (context.mounted) {
-                Navigator.pop(context);
-                ref.invalidate(plannedPaymentsListProvider);
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.check_circle, size: 18),
-                SizedBox(width: 4),
-                Text('Завершить'),
-              ],
-            ),
-          ),
-        ],
+        contentPadding: const EdgeInsets.all(20),
       ),
     );
   }
@@ -525,27 +459,42 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Тип: расход/доход
-                    ToggleButtons(
-                      isSelected: [dialogIsExpense, !dialogIsExpense],
-                      borderRadius: BorderRadius.circular(10),
-                      selectedColor: Colors.white,
-                      fillColor: dialogIsExpense
-                          ? AppTheme.expenseColor
-                          : AppTheme.incomeColor,
-                      onPressed: (idx) =>
-                          setDialogState(() => dialogIsExpense = idx == 0),
-                      children: const [
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('Расход'),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16),
-                          child: Text('Доход'),
+                    // 🔹 Кнопки Расход/Доход по центру, компактнее и округлее
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ToggleButtons(
+                          isSelected: [dialogIsExpense, !dialogIsExpense],
+                          borderRadius: BorderRadius.circular(20),
+                          constraints: const BoxConstraints(
+                            minWidth: 70,
+                            minHeight: 36,
+                          ),
+                          selectedColor: Colors.white,
+                          fillColor: dialogIsExpense
+                              ? AppTheme.expenseColor.withOpacity(0.7)
+                              : AppTheme.incomeColor.withOpacity(0.7),
+                          color: Colors.grey[700],
+                          textStyle: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          onPressed: (idx) =>
+                              setDialogState(() => dialogIsExpense = idx == 0),
+                          children: const [
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Расход'),
+                            ),
+                            Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text('Доход'),
+                            ),
+                          ],
                         ),
                       ],
                     ),
+
                     const SizedBox(height: 12),
 
                     // Название
@@ -579,49 +528,58 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
                       style: Theme.of(context).textTheme.labelLarge,
                     ),
                     const SizedBox(height: 6),
-                    SizedBox(
-                      height: 80,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        children: dialogCategories.map((cat) {
-                          final isSelected = selectedCategoryId == cat.id;
-                          return GestureDetector(
-                            onTap: () => setDialogState(
-                              () => selectedCategoryId = cat.id,
+
+                    /// 🔹 Выбор категории через отдельный экран
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Категория'),
+                      subtitle: selectedCategoryId.isEmpty
+                          ? const Text('Не выбрана')
+                          : Text(
+                              (ref.read(allCategoriesProvider).value ?? [])
+                                  .firstWhere(
+                                    (c) => c.id == selectedCategoryId,
+                                    orElse: () => CategoryModel(
+                                      id: 'unknown',
+                                      name: 'Неизвестно',
+                                      iconCode: Icons.category.codePoint,
+                                      isExpense: dialogIsExpense,
+                                      color: 0xFF90A4AE,
+                                    ),
+                                  )
+                                  .name,
                             ),
-                            child: Container(
-                              width: 70,
-                              margin: const EdgeInsets.symmetric(horizontal: 4),
-                              decoration: BoxDecoration(
-                                color: isSelected
-                                    ? AppTheme.primaryColor.withOpacity(0.15)
-                                    : Colors.grey.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: isSelected
-                                    ? Border.all(color: AppTheme.primaryColor)
-                                    : null,
+                      leading: Icon(
+                        (ref.read(allCategoriesProvider).value ?? [])
+                            .firstWhere(
+                              (c) => c.id == selectedCategoryId,
+                              orElse: () => CategoryModel(
+                                id: 'unknown',
+                                name: 'Неизвестно',
+                                iconCode: Icons.category.codePoint,
+                                isExpense: dialogIsExpense,
+                                color: 0xFF90A4AE,
                               ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // 🔹 ИСПРАВЛЕНО: cat.iconData вместо cat.icon
-                                  Icon(
-                                    cat.iconData,
-                                    size: 24,
-                                    color: AppTheme.primaryColor,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    cat.name,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        }).toList(),
+                            )
+                            .iconData,
                       ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CategorySelectionScreen(
+                              isExpense: dialogIsExpense,
+                            ),
+                          ),
+                        );
+
+                        if (result != null && result is CategoryModel) {
+                          setDialogState(() {
+                            selectedCategoryId = result.id;
+                          });
+                        }
+                      },
                     ),
                     const SizedBox(height: 12),
 
@@ -717,15 +675,15 @@ class _PlannedListScreenState extends ConsumerState<PlannedListScreen> {
   String _getRecurrenceLabel(String recurrence) {
     switch (recurrence) {
       case 'daily':
-        return 'ежедневно';
+        return 'Ежедневно';
       case 'weekly':
-        return 'еженедельно';
+        return 'Еженедельно';
       case 'monthly':
-        return 'ежемесячно';
+        return 'Ежемесячно';
       case 'yearly':
-        return 'ежегодно';
+        return 'Ежегодно';
       default:
-        return 'разово';
+        return 'Разово';
     }
   }
 

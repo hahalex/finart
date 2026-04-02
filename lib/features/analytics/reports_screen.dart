@@ -25,6 +25,8 @@ class ReportsScreen extends ConsumerWidget {
     final topCategoryPercent = ref.watch(topCategoryPercentProvider);
     final top3Categories = ref.watch(top3CategoryNamesProvider);
 
+    final selectedPeriod = ref.watch(selectedReportPeriodProvider);
+
     final savingsRate = totalIncome > 0
         ? ((balance / totalIncome) * 100).clamp(-999, 999)
         : 0.0;
@@ -49,6 +51,13 @@ class ReportsScreen extends ConsumerWidget {
             'Анализ текущего периода',
             style: TextStyle(color: Colors.grey.shade600),
           ),
+
+          const SizedBox(height: 16),
+
+          // ==========================================================
+          // PERIOD SELECTOR
+          // ==========================================================
+          _PeriodSelector(),
 
           const SizedBox(height: 20),
 
@@ -193,6 +202,88 @@ class ReportsScreen extends ConsumerWidget {
     );
   }
 }
+
+// ============================================================================
+// 📅 PERIOD SELECTOR WIDGET
+// ============================================================================
+
+class _PeriodSelector extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(selectedReportPeriodProvider);
+
+    void select(ReportPeriod period) {
+      ref.read(selectedReportPeriodProvider.notifier).state = period;
+    }
+
+    Future<void> pickCustomRange() async {
+      final now = DateTime.now();
+
+      final picked = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime(now.year - 5),
+        lastDate: now,
+      );
+
+      if (picked != null) {
+        ref.read(selectedDateRangeProvider.notifier).state = picked;
+        ref.read(selectedReportPeriodProvider.notifier).state =
+            ReportPeriod.custom;
+      }
+    }
+
+    Widget button(String label, ReportPeriod period) {
+      final isSelected = selected == period;
+
+      return GestureDetector(
+        onTap: () => select(period),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.grey,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          button('Год', ReportPeriod.year),
+          const SizedBox(width: 8),
+          button('6 мес', ReportPeriod.halfYear),
+          const SizedBox(width: 8),
+          button('Квартал', ReportPeriod.quarter),
+          const SizedBox(width: 8),
+          button('Месяц', ReportPeriod.currentMonth),
+          const SizedBox(width: 8),
+
+          IconButton(
+            icon: const Icon(Icons.calendar_today_outlined),
+            onPressed: pickCustomRange,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// 🧩 INFO CARD
+// ============================================================================
 
 class _InfoCard extends StatelessWidget {
   final String title;
