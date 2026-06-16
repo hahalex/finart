@@ -1,3 +1,6 @@
+// Файл: lib/common/widgets/category_icon.dart.
+// Назначение: содержит переиспользуемый UI-виджет приложения.
+
 import 'package:flutter/material.dart';
 import '../models/category_model.dart';
 
@@ -21,6 +24,8 @@ class CategoryIcon extends StatelessWidget {
         Icon(category.iconData, size: size, color: category.colorValue),
         if (showColorIndicator)
           Container(
+            // Маленькая точка дублирует цвет категории, когда сама иконка
+            // находится рядом с другим текстом или на светлом фоне.
             width: size * 0.35,
             height: size * 0.35,
             decoration: BoxDecoration(

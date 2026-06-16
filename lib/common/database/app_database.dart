@@ -1,22 +1,28 @@
+// Файл: lib/common/database/app_database.dart.
+// Назначение: описывает таблицы Drift и структуру локальной базы данных.
+
 import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart' show Icons;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../data/local/db/ai_learning_table.dart';
+import 'account_operations_table.dart';
+import 'accounts_table.dart';
 import 'categories_table.dart';
+import 'planned_payments_table.dart';
 import 'transactions_table.dart';
 import 'user_table.dart';
-import 'planned_payments_table.dart';
-
-import '../data/local/db/ai_learning_table.dart';
 
 part 'app_database.g.dart';
 
 @DriftDatabase(
   tables: [
     CategoriesTable,
+    AccountsTable,
+    AccountOperationsTable,
     TransactionsTable,
     UserTable,
     PlannedPaymentsTable,
@@ -27,16 +33,18 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
-      await _seedDefaultCategories();
+      await _seedDefaultAccount();
     },
     onUpgrade: (m, from, to) async {
-      if (from < 2) await m.createTable(plannedPaymentsTable);
+      if (from < 2) {
+        await m.createTable(plannedPaymentsTable);
+      }
 
       if (from < 3) {
         await m.addColumn(categoriesTable, categoriesTable.parentId);
@@ -46,107 +54,76 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(categoriesTable, categoriesTable.order);
         await m.addColumn(categoriesTable, categoriesTable.aiTag);
       }
+
+      if (from < 4) {
+        await m.addColumn(userTable, userTable.avatarPath);
+      }
+
+      if (from < 5) {
+        await m.createTable(aiLearning);
+      }
+
+      if (from < 6) {
+        await m.addColumn(aiLearning, aiLearning.normalizedText);
+        await customStatement('''
+          UPDATE ai_learning
+          SET normalized_text = trim(lower(keyword))
+          WHERE normalized_text IS NULL OR normalized_text = ''
+          ''');
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS idx_ai_learning_normalized_text ON ai_learning (normalized_text)',
+        );
+      }
+
+      if (from < 7) {
+        await m.createTable(accountsTable);
+        await _seedDefaultAccount();
+        await m.addColumn(transactionsTable, transactionsTable.accountId);
+        await m.addColumn(plannedPaymentsTable, plannedPaymentsTable.accountId);
+        await customStatement(
+          "UPDATE transactions_table SET account_id = 'main_account' WHERE account_id IS NULL",
+        );
+        await customStatement(
+          "UPDATE planned_payments_table SET account_id = 'main_account' WHERE account_id IS NULL",
+        );
+      }
+
+      if (from < 8) {
+        await m.createTable(accountOperationsTable);
+        await m.addColumn(
+          plannedPaymentsTable,
+          plannedPaymentsTable.paymentType,
+        );
+      }
+
+      if (from < 9) {
+        await m.addColumn(accountsTable, accountsTable.summary);
+      }
     },
   );
 
-  /// ✅ Сид дефолтных категорий (ПРАВИЛЬНО)
-  Future<void> _seedDefaultCategories() async {
-    final exists = await (select(categoriesTable)..limit(1)).getSingleOrNull();
+  Future<void> _seedDefaultAccount() async {
+    final exists = await (select(accountsTable)..limit(1)).getSingleOrNull();
     if (exists != null) return;
 
-    final defaults = [
-      CategoriesTableCompanion(
-        id: const Value('food'),
-        name: const Value('Еда'),
-        iconCode: Value(Icons.fastfood.codePoint),
-        isExpense: const Value(true),
-        color: const Value(0xFFFF9800),
-        parentId: const Value(null),
-        isCustom: const Value(false),
-        isArchived: const Value(false),
-        order: const Value(0),
-        aiTag: const Value('food'),
+    final now = DateTime.now();
+    await into(accountsTable).insert(
+      AccountsTableCompanion(
+        id: const Value('main_account'),
+        name: const Value('Основной счет'),
+        type: const Value('main'),
+        balance: const Value(0),
+        summary: const Value(
+          'Основной счет синхронизируется с балансом записей за выбранный месяц.',
+        ),
+        isDefault: const Value(true),
+        createdAt: Value(now),
+        updatedAt: Value(now),
       ),
-      CategoriesTableCompanion(
-        id: const Value('transport'),
-        name: const Value('Транспорт'),
-        iconCode: Value(Icons.directions_bus.codePoint),
-        isExpense: const Value(true),
-        color: const Value(0xFF2196F3),
-        parentId: const Value(null),
-        isCustom: const Value(false),
-        isArchived: const Value(false),
-        order: const Value(1),
-        aiTag: const Value('transport'),
-      ),
-      CategoriesTableCompanion(
-        id: const Value('entertainment'),
-        name: const Value('Развлечения'),
-        iconCode: Value(Icons.movie.codePoint),
-        isExpense: const Value(true),
-        color: const Value(0xFF9C27B0),
-        parentId: const Value(null),
-        isCustom: const Value(false),
-        isArchived: const Value(false),
-        order: const Value(2),
-        aiTag: const Value('entertainment'),
-      ),
-      CategoriesTableCompanion(
-        id: const Value('games'),
-        name: const Value('Игры'),
-        iconCode: Value(Icons.sports_esports.codePoint),
-        isExpense: const Value(true),
-        color: const Value(0xFF4CAF50),
-        parentId: const Value(null),
-        isCustom: const Value(false),
-        isArchived: const Value(false),
-        order: const Value(3),
-        aiTag: const Value('entertainment'),
-      ),
-      CategoriesTableCompanion(
-        id: const Value('subscriptions'),
-        name: const Value('Подписки'),
-        iconCode: Value(Icons.repeat.codePoint),
-        isExpense: const Value(true),
-        color: const Value(0xFF607D8B),
-        parentId: const Value(null),
-        isCustom: const Value(false),
-        isArchived: const Value(false),
-        order: const Value(4),
-        aiTag: const Value('subscriptions'),
-      ),
-      CategoriesTableCompanion(
-        id: const Value('salary'),
-        name: const Value('Зарплата'),
-        iconCode: Value(Icons.payments.codePoint),
-        isExpense: const Value(false),
-        color: const Value(0xFF4CAF50),
-        parentId: const Value(null),
-        isCustom: const Value(false),
-        isArchived: const Value(false),
-        order: const Value(0),
-        aiTag: const Value('income'),
-      ),
-      CategoriesTableCompanion(
-        id: const Value('gift'),
-        name: const Value('Подарок'),
-        iconCode: Value(Icons.card_giftcard.codePoint),
-        isExpense: const Value(false),
-        color: const Value(0xFFE91E63),
-        parentId: const Value(null),
-        isCustom: const Value(false),
-        isArchived: const Value(false),
-        order: const Value(1),
-        aiTag: const Value('income'),
-      ),
-    ];
-
-    for (final c in defaults) {
-      await into(categoriesTable).insert(c, mode: InsertMode.insertOrIgnore);
-    }
+      mode: InsertMode.insertOrIgnore,
+    );
   }
 
-  // Методы для пользователя
   Future<UserTableData?> getUser() =>
       (select(userTable)..limit(1)).getSingleOrNull();
 
@@ -157,7 +134,6 @@ class AppDatabase extends _$AppDatabase {
       update(userTable).replace(user);
 }
 
-/// Подключение к SQLite
 LazyDatabase _openConnection() {
   return LazyDatabase(() async {
     final dir = await getApplicationDocumentsDirectory();

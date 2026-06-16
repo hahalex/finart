@@ -1,3 +1,6 @@
+// Файл: lib/common/providers/planned_payments_provider.dart.
+// Назначение: объявляет Riverpod-провайдеры для состояния, сервисов и репозиториев.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/planned_payment_model.dart';

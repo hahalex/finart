@@ -1,10 +1,13 @@
+// Файл: lib/common/widgets/transaction_tile.dart.
+// Назначение: содержит переиспользуемый UI-виджет приложения.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/transaction_model.dart';
-import '../utils/app_theme.dart';
 import '../../features/transactions/edit_transaction_sheet.dart';
 import '../../features/transactions/providers/transactions_notifier.dart';
+import '../models/transaction_model.dart';
+import '../utils/app_theme.dart';
 
 class TransactionTile extends ConsumerWidget {
   final TransactionModel transaction;
@@ -28,21 +31,30 @@ class TransactionTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = AppTheme.colorsOf(context);
+    final amountColor = isExpense
+        ? (Theme.of(context).brightness == Brightness.light
+              ? colors.secondary
+              : colors.expense)
+        : colors.income;
+    final categoryTint = categoryColor ?? AppTheme.unknownCategoryColor;
+
     return Dismissible(
+      // Свайп влево показывает красный фон удаления и требует подтверждение.
       key: ValueKey(transaction.id),
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) async {
         return await showDialog<bool>(
           context: context,
-          builder: (_) => AlertDialog(
+          builder: (dialogContext) => AlertDialog(
             title: const Text('Удалить транзакцию?'),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context, false),
+                onPressed: () => Navigator.pop(dialogContext, false),
                 child: const Text('Нет'),
               ),
               TextButton(
-                onPressed: () => Navigator.pop(context, true),
+                onPressed: () => Navigator.pop(dialogContext, true),
                 child: const Text('Да'),
               ),
             ],
@@ -55,38 +67,62 @@ class TransactionTile extends ConsumerWidget {
             .removeTransaction(transaction.id);
       },
       background: Container(
-        color: Colors.red,
+        // Красная подложка видна только во время свайпа.
+        color: colors.expense,
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete, color: Colors.white),
       ),
       child: GestureDetector(
         onLongPress: () {
+          // Долгое нажатие открывает нижнюю панель редактирования операции.
           showModalBottomSheet(
             context: context,
             isScrollControlled: true,
             builder: (_) => EditTransactionSheet(transaction: transaction),
           );
         },
-        child: ListTile(
-          leading: CircleAvatar(
-            radius: 20,
-            backgroundColor: (categoryColor ?? Colors.grey).withOpacity(0.15),
-            child: Icon(
-              categoryIcon ?? Icons.category_outlined,
-              color: categoryColor ?? Colors.grey,
+        child: Container(
+          // Карточка операции: общий фон/граница/тень берутся из AppTheme,
+          // поэтому вид совпадает с остальными карточками приложения.
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: AppTheme.surfaceCardDecoration(
+            context,
+            radius: AppTheme.radiusMd,
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 6,
             ),
-          ),
-          title: Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w500),
-          ),
-          subtitle: Text(category),
-          trailing: Text(
-            '${isExpense ? '-' : '+'}${amount.toStringAsFixed(2)} ₽',
-            style: TextStyle(
-              color: isExpense ? AppTheme.expenseColor : AppTheme.incomeColor,
-              fontWeight: FontWeight.w600,
+            leading: CircleAvatar(
+              // Иконка категории подсвечивается полупрозрачным цветом категории.
+              radius: 20,
+              backgroundColor: categoryTint.withOpacity(0.15),
+              child: Icon(
+                categoryIcon ?? Icons.category_outlined,
+                color: categoryTint,
+              ),
+            ),
+            title: Text(
+              title,
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(
+              category,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.mutedTextOf(context),
+              ),
+            ),
+            trailing: Text(
+              // Сумма справа: минус для расходов, плюс для доходов.
+              '${isExpense ? '-' : '+'}${amount.toStringAsFixed(2)}',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: amountColor,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ),

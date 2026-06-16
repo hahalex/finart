@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# чтобы ключ не утекал
+/lib/features/transactions/providers/ai_provider.dart
+
+/docs
+/output
+/tmp
+releases/*.apk

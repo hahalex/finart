@@ -1,11 +1,11 @@
 {
-    "name": "finart_app",
-    "short_name": "finart_app",
+    "name": "FinArt",
+    "short_name": "FinArt",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFF7EF",
+    "theme_color": "#FF9140",
+    "description": "FinArt finance tracker.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -1,15 +1,21 @@
+// Файл: lib/common/providers/selected_month_provider.dart.
+// Назначение: объявляет Riverpod-провайдеры для состояния, сервисов и репозиториев.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Провайдер текущего выбранного месяца для фильтрации транзакций
 final selectedMonthProvider = StateProvider<DateTime>((ref) {
   final now = DateTime.now();
-  // Возвращаем 1-е число текущего месяца для удобства сравнения
   return DateTime(now.year, now.month, 1);
 });
 
-/// Вспомогательный метод: получить название месяца на русском
-String getMonthName(DateTime date, {bool short = false}) {
-  const months = [
+String getMonthName(
+  DateTime date, {
+  bool short = false,
+  String languageCode = 'ru',
+}) {
+  final isRu = languageCode.toLowerCase().startsWith('ru');
+
+  const ruMonths = [
     '',
     'Январь',
     'Февраль',
@@ -24,7 +30,7 @@ String getMonthName(DateTime date, {bool short = false}) {
     'Ноябрь',
     'Декабрь',
   ];
-  const monthsShort = [
+  const ruMonthsShort = [
     '',
     'Янв',
     'Фев',
@@ -39,10 +45,43 @@ String getMonthName(DateTime date, {bool short = false}) {
     'Ноя',
     'Дек',
   ];
-  return short ? monthsShort[date.month] : months[date.month];
+  const enMonths = [
+    '',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  const enMonthsShort = [
+    '',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  final months = isRu
+      ? (short ? ruMonthsShort : ruMonths)
+      : (short ? enMonthsShort : enMonths);
+  return months[date.month];
 }
 
-/// Вспомогательный метод: получить диапазон дат для месяца
 (DateTime start, DateTime end) getMonthRange(DateTime monthDate) {
   final start = DateTime(monthDate.year, monthDate.month, 1);
   final end = monthDate.month == 12

@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "finart_app" "\0"
+            VALUE "FileDescription", "FinArt" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "finart_app" "\0"
+            VALUE "InternalName", "FinArt" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "finart_app.exe" "\0"
-            VALUE "ProductName", "finart_app" "\0"
+            VALUE "OriginalFilename", "FinArt.exe" "\0"
+            VALUE "ProductName", "FinArt" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -1,3 +1,6 @@
+// Файл: lib/common/debug/test_planned_payments.dart.
+// Назначение: используется для локальной отладки сценариев разработки.
+
 // import '../database/app_database.dart';
 // import '../database/planned_payments_table.dart';
 

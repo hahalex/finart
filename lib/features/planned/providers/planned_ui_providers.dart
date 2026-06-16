@@ -1,3 +1,6 @@
+// Файл: lib/features/planned/providers/planned_ui_providers.dart.
+// Назначение: объявляет Riverpod-провайдеры для состояния, сервисов и репозиториев.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../common/models/planned_payment_model.dart';
@@ -26,7 +29,6 @@ final plannedPaymentsListProvider =
         case PlannedFilter.completed:
           return all.where((p) => !p.isActive).toList();
         case PlannedFilter.all:
-        default:
           return all;
       }
     });

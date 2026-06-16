@@ -1,3 +1,6 @@
+// Файл: lib/common/models/recommendation_model.dart.
+// Назначение: описывает доменные модели и вычисления, которыми пользуются экраны и сервисы.
+
 enum RecommendationType { warning, success, info, tip }
 
 enum RecommendationPriority { high, medium, low }

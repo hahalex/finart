@@ -1,3 +1,6 @@
+// Файл: lib/common/repositories/planned_repository.dart.
+// Назначение: изолирует доступ к данным и операции чтения/записи в локальное хранилище.
+
 import 'package:drift/drift.dart'; // Для Value
 
 import '../database/app_database.dart'; // ✅ Только этот импорт! Не .g.dart
@@ -18,6 +21,8 @@ class PlannedRepository {
             title: row.title,
             amount: row.amount,
             categoryId: row.categoryId,
+            accountId: row.accountId,
+            paymentType: _paymentTypeFromDb(row.paymentType),
             isExpense: row.isExpense,
             startDate: row.startDate,
             recurrence: row.recurrence,
@@ -45,6 +50,8 @@ class PlannedRepository {
             title: row.title,
             amount: row.amount,
             categoryId: row.categoryId,
+            accountId: row.accountId,
+            paymentType: _paymentTypeFromDb(row.paymentType),
             isExpense: row.isExpense,
             startDate: row.startDate,
             recurrence: row.recurrence,
@@ -67,6 +74,8 @@ class PlannedRepository {
             title: Value(payment.title),
             amount: Value(payment.amount),
             categoryId: Value(payment.categoryId),
+            accountId: Value(payment.accountId),
+            paymentType: Value(payment.paymentType.name),
             isExpense: Value(payment.isExpense),
             startDate: Value(payment.startDate),
             recurrence: Value(payment.recurrence),
@@ -84,6 +93,8 @@ class PlannedRepository {
         title: Value(payment.title),
         amount: Value(payment.amount),
         categoryId: Value(payment.categoryId),
+        accountId: Value(payment.accountId),
+        paymentType: Value(payment.paymentType.name),
         isExpense: Value(payment.isExpense),
         startDate: Value(payment.startDate),
         recurrence: Value(payment.recurrence),
@@ -101,5 +112,12 @@ class PlannedRepository {
   Future<void> deactivatePlannedPayment(String id) async {
     await (_db.update(_db.plannedPaymentsTable)..where((t) => t.id.equals(id)))
         .write(const PlannedPaymentsTableCompanion(isActive: Value(false)));
+  }
+
+  PlannedPaymentType _paymentTypeFromDb(String value) {
+    return PlannedPaymentType.values.firstWhere(
+      (type) => type.name == value,
+      orElse: () => PlannedPaymentType.standard,
+    );
   }
 }

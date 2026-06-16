@@ -1,17 +1,21 @@
+// Файл: lib/common/widgets/month_picker_dialog.dart.
+// Назначение: содержит переиспользуемый UI-виджет приложения.
+
 import 'package:flutter/material.dart';
-import '../utils/app_theme.dart';
+
+import '../localization/app_strings.dart';
 import '../providers/selected_month_provider.dart';
+import '../utils/app_theme.dart';
 
-/// Диалог быстрого выбора месяца и года
 class MonthPickerDialog extends StatefulWidget {
-  final DateTime initialDate;
-  final ValueChanged<DateTime> onSelected;
-
   const MonthPickerDialog({
     super.key,
     required this.initialDate,
     required this.onSelected,
   });
+
+  final DateTime initialDate;
+  final ValueChanged<DateTime> onSelected;
 
   @override
   State<MonthPickerDialog> createState() => _MonthPickerDialogState();
@@ -30,20 +34,25 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
+    final strings = AppStrings.of(context);
     final months = List.generate(
       12,
-      (i) => getMonthName(DateTime(2024, i + 1)),
+      (i) => getMonthName(
+        DateTime(2024, i + 1),
+        short: true,
+        languageCode: strings.isRu ? 'ru' : 'en',
+      ),
     );
 
     return AlertDialog(
-      title: const Text('Выберите месяц'),
-      backgroundColor: AppTheme.backgroundColor,
+      title: Text(strings.isRu ? 'Выберите месяц' : 'Choose month'),
+      backgroundColor: colors.surface,
       content: SizedBox(
         width: 300,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Выбор года
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -65,8 +74,6 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
               ],
             ),
             const SizedBox(height: 16),
-
-            // Сетка месяцев
             SizedBox(
               height: 250,
               child: GridView.builder(
@@ -79,6 +86,7 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                 itemBuilder: (context, index) {
                   final month = index + 1;
                   final isSelected = _selectedMonth == month;
+
                   return GestureDetector(
                     onTap: () {
                       widget.onSelected(DateTime(_selectedYear, month, 1));
@@ -87,14 +95,10 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
                     child: Container(
                       margin: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.primaryColor
-                            : Colors.transparent,
+                        color: isSelected ? colors.primary : Colors.transparent,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: isSelected
-                              ? AppTheme.primaryColor
-                              : Colors.grey.withOpacity(0.3),
+                          color: isSelected ? colors.primary : colors.border,
                         ),
                       ),
                       child: Center(
@@ -117,14 +121,14 @@ class _MonthPickerDialogState extends State<MonthPickerDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(strings.cancel),
         ),
         TextButton(
           onPressed: () {
             widget.onSelected(DateTime(_selectedYear, _selectedMonth, 1));
             Navigator.pop(context);
           },
-          child: const Text('Выбрать'),
+          child: Text(strings.isRu ? 'Выбрать' : 'Select'),
         ),
       ],
     );

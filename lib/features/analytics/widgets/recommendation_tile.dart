@@ -1,3 +1,6 @@
+// Файл: lib/features/analytics/widgets/recommendation_tile.dart.
+// Назначение: содержит переиспользуемый UI-виджет приложения.
+
 import 'package:flutter/material.dart';
 import '../../../common/models/recommendation_model.dart';
 
@@ -37,6 +40,8 @@ class RecommendationTile extends StatelessWidget {
     final accentColor = _colorForType(context, recommendation.type);
 
     return Container(
+      // Карточка рекомендации окрашивается по типу: warning/success/tip/info.
+      // Цвет рамки очень прозрачный, чтобы рекомендация была заметной, но не шумной.
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -56,6 +61,7 @@ class RecommendationTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
+            // Круглая иконка слева помогает быстро считать важность совета.
             width: 42,
             height: 42,
             decoration: BoxDecoration(

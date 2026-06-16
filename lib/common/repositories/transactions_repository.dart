@@ -1,3 +1,6 @@
+// Файл: lib/common/repositories/transactions_repository.dart.
+// Назначение: изолирует доступ к данным и операции чтения/записи в локальное хранилище.
+
 import 'package:drift/drift.dart';
 
 import '../database/app_database.dart';
@@ -18,6 +21,7 @@ class TransactionsRepository {
         id: row.id,
         amount: row.amount,
         categoryId: row.categoryId,
+        accountId: row.accountId,
         description: row.description,
         createdAt: row.createdAt,
         isExpense: row.isExpense,
@@ -34,6 +38,7 @@ class TransactionsRepository {
             id: transaction.id,
             amount: transaction.amount,
             categoryId: transaction.categoryId,
+            accountId: Value(transaction.accountId),
             description: Value(transaction.description),
             createdAt: transaction.createdAt,
             isExpense: transaction.isExpense,
@@ -56,6 +61,7 @@ class TransactionsRepository {
       TransactionsTableCompanion(
         amount: Value(transaction.amount),
         categoryId: Value(transaction.categoryId),
+        accountId: Value(transaction.accountId),
         description: Value(transaction.description),
         isExpense: Value(transaction.isExpense),
         createdAt: Value(transaction.createdAt),

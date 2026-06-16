@@ -1,3 +1,6 @@
+// Файл: lib/features/analytics/providers/category_expenses_provider.dart.
+// Назначение: объявляет Riverpod-провайдеры для состояния, сервисов и репозиториев.
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../transactions/providers/transactions_notifier.dart';

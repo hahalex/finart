@@ -1,21 +1,15 @@
+// Файл: lib/features/categories/category_form_dialog.dart.
+// Назначение: строит пользовательский экран или диалог соответствующего раздела приложения.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../common/localization/app_strings.dart';
 import '../../common/models/category_model.dart';
 import '../../common/providers/categories_provider.dart';
 import '../../common/utils/app_theme.dart';
 
-// TODO убрать все подкатегории - предупреждуения о том что нужно выбрать родительскую категорию достаточно
-// ============================================================================
-// 📝 ФОРМА: Создание/Редактирование категории
-// ============================================================================
-
 class CategoryFormDialog extends ConsumerStatefulWidget {
-  final bool isExpense;
-  final CategoryModel? category;
-  final CategoryModel? parentCategory;
-  final Function(CategoryModel) onSave;
-
   const CategoryFormDialog({
     super.key,
     required this.isExpense,
@@ -24,64 +18,35 @@ class CategoryFormDialog extends ConsumerStatefulWidget {
     required this.onSave,
   });
 
+  final bool isExpense;
+  final CategoryModel? category;
+  final CategoryModel? parentCategory;
+  final ValueChanged<CategoryModel> onSave;
+
   @override
   ConsumerState<CategoryFormDialog> createState() => _CategoryFormDialogState();
 }
 
 class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
   late final TextEditingController _nameController;
+  late final TextEditingController _aiTagController;
   late int _iconCode;
   late int _color;
   String? _selectedParentId;
   String? _aiTag;
   bool _isSubcategoryMode = false;
 
-  // 🔹 Предустановленные иконки (Material Icons)
-  static const _availableIcons = [
-    Icons.fastfood,
-    Icons.local_cafe,
-    Icons.shopping_cart,
-    Icons.directions_bus,
-    Icons.local_taxi,
-    Icons.flight,
-    Icons.movie,
-    Icons.sports_esports,
-    Icons.music_note,
-    Icons.home,
-    Icons.work,
-    Icons.school,
-    Icons.favorite,
-    Icons.health_and_safety,
-    Icons.local_hospital,
-    Icons.payments,
-    Icons.account_balance,
-    Icons.card_giftcard,
-    Icons.category,
-    Icons.attach_money,
-    Icons.credit_card,
-    Icons.shopping_bag,
-  ];
-
-  // 🔹 Предустановленные цвета
-  static const _availableColors = [
-    0xFFFF9800, // orange
-    0xFF2196F3, // blue
-    0xFF9C27B0, // purple
-    0xFF4CAF50, // green
-    0xFFF44336, // red
-    0xFF607D8B, // blue grey
-    0xFF795548, // brown
-    0xFFE91E63, // pink
-    0xFF00BCD4, // cyan
-    0xFFFFC107, // amber
-  ];
-
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.category?.name ?? '');
+    _aiTagController = TextEditingController(
+      text: widget.category?.aiTag ?? '',
+    );
     _iconCode = widget.category?.iconCode ?? Icons.category.codePoint;
-    _color = widget.category?.color ?? _availableColors.first;
+    _color =
+        widget.category?.color ??
+        AppTheme.lightCategoryPresetColors.first.value;
     _selectedParentId = widget.parentCategory?.id ?? widget.category?.parentId;
     _aiTag = widget.category?.aiTag;
     _isSubcategoryMode = _selectedParentId != null;
@@ -90,93 +55,101 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
   @override
   void dispose() {
     _nameController.dispose();
+    _aiTagController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
+    final strings = AppStrings.of(context);
+    final availableIcons = AppTheme.categoryPresetIcons;
+    final availableColors = AppTheme.categoryPresetColorsOf(context);
     final isEdit = widget.category != null;
     final isForcedSubcategory = widget.parentCategory != null;
 
     return AlertDialog(
-      title: Text(isEdit ? 'Редактировать' : 'Новая категория'),
+      title: Text(isEdit ? strings.editCategory : strings.newCategory),
       content: SingleChildScrollView(
+        // SingleChildScrollView защищает форму от overflow на небольших экранах.
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 🔹 Название
             TextField(
+              // Название категории обязательно и показывается во всех списках.
               controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Название *',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
+              decoration: InputDecoration(
+                labelText: '${strings.name} *',
+                helperText: strings.isRu
+                    ? 'Понятное имя для отображения в приложении'
+                    : 'A clear name shown across the app',
               ),
               autofocus: true,
               maxLength: 50,
             ),
             const SizedBox(height: 16),
-
-            // 🔹 Выбор иконки
-            Text('Иконка', style: Theme.of(context).textTheme.labelLarge),
+            Text(strings.icon, style: Theme.of(context).textTheme.labelLarge),
             const SizedBox(height: 8),
             SizedBox(
-              height: 60,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: _availableIcons.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+              // Сетка иконок: выбранная иконка подсвечивается рамкой primary.
+              height: 144,
+              child: GridView.builder(
+                shrinkWrap: true,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                ),
+                itemCount: availableIcons.length,
                 itemBuilder: (context, index) {
-                  final icon = _availableIcons[index];
+                  final icon = availableIcons[index];
                   final isSelected = _iconCode == icon.codePoint;
+
                   return GestureDetector(
                     onTap: () => setState(() => _iconCode = icon.codePoint),
-                    child: Container(
-                      width: 50,
+                    child: AnimatedContainer(
+                      // AnimatedContainer дает мягкую смену рамки/фона при выборе.
+                      duration: const Duration(milliseconds: 180),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppTheme.primaryColor.withOpacity(0.15)
-                            : Colors.grey.shade50,
+                            ? colors.primary.withOpacity(0.15)
+                            : colors.surfaceSoft,
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isSelected
-                              ? AppTheme.primaryColor
-                              : Colors.grey.shade300,
+                          color: isSelected ? colors.primary : colors.border,
                           width: isSelected ? 2 : 1,
                         ),
                       ),
-                      child: Icon(icon, color: Color(_color), size: 28),
+                      child: Icon(icon, color: Color(_color), size: 24),
                     ),
                   );
                 },
               ),
             ),
             const SizedBox(height: 16),
-
-            // 🔹 Выбор цвета
-            Text('Цвет', style: Theme.of(context).textTheme.labelLarge),
+            Text(strings.color, style: Theme.of(context).textTheme.labelLarge),
             const SizedBox(height: 8),
             Wrap(
+              // Цветовые кружки категории. Выбранный цвет получает толстую рамку
+              // и галочку с контрастным цветом текста.
               spacing: 8,
               runSpacing: 8,
-              children: _availableColors.map((c) {
-                final isSelected = _color == c;
+              children: availableColors.map((colorValue) {
+                final value = colorValue.value;
+                final isSelected = _color == value;
+
                 return GestureDetector(
-                  onTap: () => setState(() => _color = c),
-                  child: Container(
+                  onTap: () => setState(() => _color = value),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Color(c),
+                      color: Color(value),
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isSelected
-                            ? AppTheme.primaryColor
-                            : Colors.transparent,
+                        color: isSelected ? colors.primary : Colors.transparent,
                         width: 3,
                       ),
                     ),
@@ -184,7 +157,7 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
                         ? Icon(
                             Icons.check,
                             size: 18,
-                            color: _getContrastText(Color(c)),
+                            color: AppTheme.getContrastText(Color(value)),
                           )
                         : null,
                   ),
@@ -192,148 +165,159 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
               }).toList(),
             ),
             const SizedBox(height: 16),
-
-            // 🔹 Режим подкатегории
             if (!isForcedSubcategory) ...[
               Row(
                 children: [
                   Text(
-                    'Подкатегория',
+                    strings.subcategory,
                     style: Theme.of(context).textTheme.labelLarge,
                   ),
                   const SizedBox(width: 8),
                   Switch(
+                    // Переключает форму между основной категорией и подкатегорией.
                     value: _isSubcategoryMode,
-                    onChanged: (val) {
+                    onChanged: (value) {
                       setState(() {
-                        _isSubcategoryMode = val;
-                        if (!val) _selectedParentId = null;
+                        _isSubcategoryMode = value;
+                        if (!value) _selectedParentId = null;
                       });
                     },
                   ),
                 ],
               ),
-
-              // 🔹 Выбор родителя (если режим подкатегории включён)
               if (_isSubcategoryMode) ...[
                 const SizedBox(height: 8),
-                _buildParentSelector(),
+                _buildParentSelector(context),
               ],
             ],
-
-            // 🔹 AI-тег (опционально)
             const SizedBox(height: 16),
             TextField(
-              decoration: const InputDecoration(
-                labelText: 'AI-тег (опционально)',
+              // AI-тег помогает автоматической категоризации связывать слова
+              // из описания операции с этой категорией.
+              controller: _aiTagController,
+              decoration: InputDecoration(
+                labelText: strings.aiTagOptional,
                 hintText: 'food, transport, subscriptions...',
-                border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 14,
-                ),
+                helperText: strings.isRu
+                    ? 'AI-тег помогает автоматической классификации. Можно указать ключевую тему или синоним.'
+                    : 'AI tag helps automatic categorization. Use a theme, keyword, or synonym.',
               ),
-              onChanged: (val) =>
-                  _aiTag = val.isEmpty ? null : val.toLowerCase().trim(),
+              onChanged: (value) => _aiTag = value.trim().isEmpty
+                  ? null
+                  : value.toLowerCase().trim(),
             ),
+            if ((_aiTag ?? '').isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildHintChip(
+                    context,
+                    icon: Icons.auto_awesome_rounded,
+                    label: strings.isRu
+                        ? 'Текущий AI-тег: $_aiTag'
+                        : 'Current AI tag: $_aiTag',
+                  ),
+                  _buildHintChip(
+                    context,
+                    icon: Icons.tips_and_updates_outlined,
+                    label: strings.isRu
+                        ? 'Пример: coffee, groceries, freelance'
+                        : 'Example: coffee, groceries, freelance',
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
       actions: [
         TextButton(
+          // Закрывает форму без сохранения.
           onPressed: () => Navigator.pop(context),
-          child: const Text('Отмена'),
+          child: Text(strings.cancel),
         ),
         ElevatedButton(
-          onPressed: _save,
+          // Сохраняет категорию и возвращает ее в вызывающий экран.
+          onPressed: () => _save(context),
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryColor,
+            backgroundColor: colors.primary,
             foregroundColor: Colors.white,
           ),
-          child: Text(isEdit ? 'Сохранить' : 'Создать'),
+          child: Text(isEdit ? strings.save : strings.createCategory),
         ),
       ],
     );
   }
 
-  /// 🔹 Виджет выбора родительской категории
-  Widget _buildParentSelector() {
-    final repo = ref.read(categoriesRepositoryProvider);
+  Widget _buildParentSelector(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final rootsAsync = ref.watch(
+      widget.isExpense ? expenseCategoriesProvider : incomeCategoriesProvider,
+    );
 
-    return FutureBuilder<List<CategoryModel>>(
-      future: repo.getRootCategories(widget.isExpense),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const SizedBox(
-            height: 40,
-            child: Center(child: CircularProgressIndicator.adaptive()),
-          );
-        }
+    return rootsAsync.when(
+      loading: () => const SizedBox(
+        height: 40,
+        child: Center(child: CircularProgressIndicator.adaptive()),
+      ),
+      error: (err, _) => Text('Error: $err'),
+      data: (allRoots) {
+        final roots = allRoots
+            .where(
+              (root) =>
+                  widget.category == null || root.id != widget.category!.id,
+            )
+            .toList();
 
-        final roots = snapshot.data!;
-
-        // Фильтруем: нельзя выбрать себя или свои подкатегории как родителя
-        final availableRoots = roots.where((r) {
-          if (widget.category == null) return true;
-          return r.id != widget.category!.id;
-        }).toList();
-
-        if (availableRoots.isEmpty) {
+        if (roots.isEmpty) {
           return Text(
-            'Сначала создайте корневую категорию',
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+            strings.createRootCategoryFirst,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mutedTextOf(context),
+            ),
           );
         }
 
         return DropdownButtonFormField<String>(
           value: _selectedParentId?.isEmpty == true ? null : _selectedParentId,
-          decoration: const InputDecoration(
-            labelText: 'Родительская категория *',
-            border: OutlineInputBorder(),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 0),
-          ),
-          items: availableRoots.map((root) {
-            return DropdownMenuItem(
+          decoration: InputDecoration(labelText: strings.parentCategory),
+          items: roots.map((root) {
+            return DropdownMenuItem<String>(
               value: root.id,
               child: Row(
                 children: [
                   Icon(root.iconData, size: 18, color: root.colorValue),
                   const SizedBox(width: 8),
-                  Text(root.name),
+                  Expanded(child: Text(root.name)),
                 ],
               ),
             );
           }).toList(),
-          onChanged: (val) => setState(() => _selectedParentId = val),
+          onChanged: (value) => setState(() => _selectedParentId = value),
           isExpanded: true,
-          validator: (val) {
-            if (_isSubcategoryMode && (val == null || val.isEmpty)) {
-              return 'Выберите родителя';
-            }
-            return null;
-          },
         );
       },
     );
   }
 
-  /// 🔹 Сохранение категории
-  void _save() {
-    // Валидация названия
+  void _save(BuildContext context) {
+    final strings = AppStrings.of(context);
     final name = _nameController.text.trim();
+
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Введите название категории')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.categoryNameRequired)));
       return;
     }
 
-    // Валидация родителя (если режим подкатегории)
     if (_isSubcategoryMode &&
         (_selectedParentId == null || _selectedParentId!.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Выберите родительскую категорию')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.chooseParentCategory)));
       return;
     }
 
@@ -354,14 +338,43 @@ class _CategoryFormDialogState extends ConsumerState<CategoryFormDialog> {
     Navigator.pop(context);
   }
 
-  /// 🔹 Генерация уникального ID
   String _generateId(String name) {
-    final base = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9а-яё]'), '_');
+    final base = name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9а-яё]+'), '_')
+        .replaceAll(RegExp(r'^_+|_+$'), '');
     return '${base}_${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  /// 🔹 Контрастный текст для цвета фона
-  Color _getContrastText(Color bg) {
-    return bg.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
+  Widget _buildHintChip(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+  }) {
+    final colors = AppTheme.colorsOf(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surfaceSoft,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: colors.primary),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

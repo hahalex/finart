@@ -1,101 +1,116 @@
+// Файл: lib/common/services/planned_payment_service.dart.
+// Назначение: содержит прикладной сервис с бизнес-логикой, фоновой обработкой или интеграциями.
+
 import 'dart:developer';
 
-// ✅ ТОЛЬКО этот импорт — НЕ .g.dart!
 import '../database/app_database.dart';
 import '../models/planned_payment_model.dart';
 import '../models/transaction_model.dart';
+import '../models/account_operation_model.dart';
+import '../repositories/accounts_repository.dart';
 import '../repositories/planned_repository.dart';
 import '../repositories/transactions_repository.dart';
+import '../utils/recurrence_rule.dart';
 
-/// Сервис обработки запланированных платежей
 class PlannedPaymentService {
-  final PlannedRepository _plannedRepo;
-  final TransactionsRepository _transactionsRepo;
-  final AppDatabase _db;
-
   PlannedPaymentService({
     required PlannedRepository plannedRepository,
     required TransactionsRepository transactionsRepository,
+    required AccountsRepository accountsRepository,
     required AppDatabase database,
   }) : _plannedRepo = plannedRepository,
        _transactionsRepo = transactionsRepository,
+       _accountsRepo = accountsRepository,
        _db = database;
 
-  /// Основная логика: проверить и обработать "созревшие" платежи
+  final PlannedRepository _plannedRepo;
+  final TransactionsRepository _transactionsRepo;
+  final AccountsRepository _accountsRepo;
+  final AppDatabase _db;
+
   Future<void> processDuePayments() async {
-    log('🔄 PlannedPaymentService: проверка запланированных платежей...');
+    log('PlannedPaymentService: checking due planned payments');
 
     final now = DateTime.now();
     final duePayments = await _plannedRepo.getDuePayments(until: now);
-
     if (duePayments.isEmpty) {
-      log('✅ Нет платежей для обработки');
+      log('PlannedPaymentService: no due payments');
       return;
     }
-
-    log('📋 Найдено платежей для обработки: ${duePayments.length}');
 
     for (final payment in duePayments) {
       try {
         await _processSinglePayment(payment, now);
-        log('✅ Обработан: ${payment.title}');
-      } catch (e, stack) {
-        log('❌ Ошибка при обработке ${payment.title}: $e', stackTrace: stack);
+      } catch (error, stack) {
+        log(
+          'PlannedPaymentService: failed to process ${payment.title}: $error',
+          stackTrace: stack,
+        );
       }
     }
-
-    log('🎉 Обработка завершена');
   }
 
-  /// Обработка одного запланированного платежа
   Future<void> _processSinglePayment(
     PlannedPaymentModel payment,
     DateTime now,
   ) async {
-    // 1. Создаём реальную транзакцию
-    final transaction = TransactionModel(
-      id: 'txn_${payment.id}_${now.millisecondsSinceEpoch}',
-      amount: payment.amount,
-      categoryId: payment.categoryId,
-      description: 'Авто: ${payment.title}',
-      createdAt: now,
-      isExpense: payment.isExpense,
+    final rule = RecurrenceRule.parse(payment.recurrence);
+    var dueDate = payment.startDate;
+    var generatedCount = 0;
+
+    await _db.transaction(() async {
+      do {
+        final isTransfer = payment.paymentType.isTransfer;
+        final transaction = TransactionModel(
+          id: 'txn_${payment.id}_${dueDate.millisecondsSinceEpoch}',
+          amount: payment.amount,
+          categoryId: payment.categoryId,
+          accountId: AccountsRepository.mainAccountId,
+          description: 'Auto: ${payment.title}',
+          createdAt: dueDate,
+          isExpense: isTransfer ? true : payment.isExpense,
+        );
+
+        await _transactionsRepo.insertTransaction(transaction);
+
+        final linkedAccountId = payment.accountId;
+        if (linkedAccountId != null &&
+            linkedAccountId != AccountsRepository.mainAccountId) {
+          final delta = isTransfer
+              ? payment.amount
+              : payment.isExpense
+              ? payment.amount
+              : -payment.amount;
+          await _accountsRepo.adjustAccountBalance(linkedAccountId, delta);
+          await _accountsRepo.addOperation(
+            accountId: linkedAccountId,
+            type: AccountOperationType.autoPayment,
+            amount: payment.amount,
+            note: payment.title,
+            plannedPaymentId: payment.id,
+            createdAt: dueDate,
+          );
+        }
+        generatedCount++;
+
+        if (rule.isOneTime) break;
+
+        final nextDate = rule.nextAfter(dueDate);
+        if (!nextDate.isAfter(dueDate)) break;
+        dueDate = nextDate;
+      } while (!dueDate.isAfter(now) && generatedCount < 366);
+
+      if (rule.isOneTime) {
+        await _plannedRepo.deactivatePlannedPayment(payment.id);
+      } else {
+        await _plannedRepo.updatePlannedPayment(
+          payment.copyWith(startDate: dueDate),
+        );
+      }
+    });
+
+    log(
+      'PlannedPaymentService: generated $generatedCount transactions for ${payment.title}',
     );
-
-    await _transactionsRepo.insertTransaction(transaction);
-    log('💸 Создана транзакция: ${transaction.description}');
-
-    // 2. Если платёж повторяющийся — обновляем дату следующего
-    if (payment.recurrence != 'none') {
-      final nextDate = _calculateNextDate(
-        payment.startDate,
-        payment.recurrence,
-      );
-
-      await _plannedRepo.updatePlannedPayment(
-        payment.copyWith(startDate: nextDate),
-      );
-      log('📅 Следующая дата для ${payment.title}: $nextDate');
-    } else {
-      // 3. Если одноразовый — деактивируем после исполнения
-      await _plannedRepo.deactivatePlannedPayment(payment.id);
-      log('🔕 Деактивирован одноразовый платёж: ${payment.title}');
-    }
-  }
-
-  /// Расчёт следующей даты на основе периодичности
-  DateTime _calculateNextDate(DateTime current, String recurrence) {
-    switch (recurrence) {
-      case 'daily':
-        return current.add(const Duration(days: 1));
-      case 'weekly':
-        return current.add(const Duration(days: 7));
-      case 'monthly':
-        return DateTime(current.year, current.month + 1, current.day);
-      case 'yearly':
-        return DateTime(current.year + 1, current.month, current.day);
-      default:
-        return current;
-    }
   }
 }

@@ -1,6 +1,12 @@
+// Файл: lib/common/repositories/categories_repository.dart.
+// Назначение: изолирует доступ к данным и операции чтения/записи в локальное хранилище.
+
 import 'package:drift/drift.dart';
 import '../database/app_database.dart';
+import '../data/default_categories.dart';
+import '../localization/app_language.dart';
 import '../models/category_model.dart';
+import '../utils/app_theme.dart';
 
 class CategoriesRepository {
   final AppDatabase _db;
@@ -124,6 +130,19 @@ class CategoriesRepository {
     );
   }
 
+  Future<void> reorderCategories(List<CategoryModel> orderedCategories) async {
+    await _db.batch((batch) {
+      for (var index = 0; index < orderedCategories.length; index++) {
+        final category = orderedCategories[index];
+        batch.update(
+          _db.categoriesTable,
+          CategoriesTableCompanion(order: Value(index)),
+          where: (table) => table.id.equals(category.id),
+        );
+      }
+    });
+  }
+
   Future<void> archiveCategory(String id) async {
     if (await isCategoryUsed(id)) {
       throw Exception(
@@ -219,5 +238,61 @@ class CategoriesRepository {
   String generateCategoryId(String name) {
     final base = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
     return '${base}_${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  Future<void> syncDefaultCategoryLocalizations(AppLanguage language) async {
+    final localizedDefaults = [
+      ...buildDefaultCategories(language),
+      ...buildDefaultSubcategories(language),
+    ];
+
+    for (final localized in localizedDefaults) {
+      final existing = await getCategoryById(localized.id);
+
+      if (existing == null) {
+        await insertCategory(localized);
+        continue;
+      }
+
+      if (existing.isCustom) continue;
+
+      await updateCategory(
+        existing.copyWith(
+          name: localized.name,
+          iconCode: localized.iconCode,
+          color: localized.color,
+          parentId: localized.parentId,
+          order: localized.order,
+          aiTag: localized.aiTag,
+        ),
+      );
+    }
+  }
+
+  Future<void> normalizeCategoryColors({Set<String>? categoryIds}) async {
+    final categories = await getAllCategories(includeArchived: true);
+    if (categories.isEmpty) return;
+
+    final targetCategories = categoryIds == null
+        ? categories
+        : categories.where((item) => categoryIds.contains(item.id)).toList();
+    if (targetCategories.isEmpty) return;
+
+    final palette = AppTheme.lightCategoryPresetColors;
+    final expense = targetCategories.where((item) => item.isExpense).toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+    final income = targetCategories.where((item) => !item.isExpense).toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+
+    Future<void> applyPalette(List<CategoryModel> items, int offset) async {
+      for (var i = 0; i < items.length; i++) {
+        final nextColor = palette[(i + offset) % palette.length].value;
+        if (items[i].color == nextColor) continue;
+        await updateCategory(items[i].copyWith(color: nextColor));
+      }
+    }
+
+    await applyPalette(expense, 0);
+    await applyPalette(income, 6);
   }
 }

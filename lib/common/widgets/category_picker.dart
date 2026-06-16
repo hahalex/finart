@@ -1,32 +1,22 @@
+// Файл: lib/common/widgets/category_picker.dart.
+// Назначение: содержит переиспользуемый UI-виджет приложения.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/categories/categories_screen.dart';
+import '../localization/app_strings.dart';
 import '../models/category_model.dart';
 import '../providers/categories_provider.dart';
 import '../utils/app_theme.dart';
 import 'category_icon.dart';
 import 'category_tile.dart';
-import '../../features/categories/categories_screen.dart';
 
-/// 🔹 Тип обратного вызова при выборе категории
 typedef OnCategorySelected = void Function(CategoryModel category);
 
-/// 🔹 Режим отображения пикера
-enum CategoryPickerMode {
-  grid, // Сетка (для форм добавления)
-  list, // Список (для фильтров)
-  compact, // Компактный чип (для отображения выбранной)
-}
+enum CategoryPickerMode { grid, list, compact }
 
-/// 🎯 Основной виджет выбора категории с поддержкой подкатегорий
 class CategoryPicker extends ConsumerWidget {
-  final bool isExpense;
-  final CategoryModel? selectedCategory;
-  final OnCategorySelected? onSelected;
-  final CategoryPickerMode mode;
-  final bool showSubcategories;
-  final double? height;
-
   const CategoryPicker({
     super.key,
     required this.isExpense,
@@ -37,59 +27,70 @@ class CategoryPicker extends ConsumerWidget {
     this.height,
   });
 
+  final bool isExpense;
+  final CategoryModel? selectedCategory;
+  final OnCategorySelected? onSelected;
+  final CategoryPickerMode mode;
+  final bool showSubcategories;
+  final double? height;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 🔹 Подписка на иерархию категорий (кэшируется!)
-    final hierarchyAsync = ref.watch(categoriesHierarchyProvider(isExpense));
+    final rootsAsync = ref.watch(
+      isExpense ? expenseCategoriesProvider : incomeCategoriesProvider,
+    );
+
+    final child = rootsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator.adaptive()),
+      error: (err, _) => Center(child: Text('Error: $err')),
+      data: (roots) => _buildPicker(context, ref, roots),
+    );
 
     if (height != null) {
-      return SizedBox(
-        height: height,
-        child: _buildContent(context, hierarchyAsync),
-      );
+      // В формах выбора операции высота ограничивается снаружи,
+      // чтобы сетка категорий не вытесняла кнопку сохранения.
+      return SizedBox(height: height, child: child);
     }
-    return _buildContent(context, hierarchyAsync);
-  }
-
-  Widget _buildContent(
-    BuildContext context,
-    AsyncValue<Map<CategoryModel, List<CategoryModel>>> async,
-  ) {
-    return async.when(
-      loading: () => const Center(child: CircularProgressIndicator.adaptive()),
-      error: (err, _) => Center(
-        child: Text(
-          'Ошибка загрузки: $err',
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-          textAlign: TextAlign.center,
-        ),
-      ),
-      data: (hierarchy) => _buildPicker(context, hierarchy),
-    );
+    return child;
   }
 
   Widget _buildPicker(
     BuildContext context,
-    Map<CategoryModel, List<CategoryModel>> hierarchy,
+    WidgetRef ref,
+    List<CategoryModel> roots,
   ) {
-    if (hierarchy.isEmpty) {
+    final strings = AppStrings.of(context);
+
+    if (roots.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.category_outlined, size: 48, color: Colors.grey),
+            Container(
+              // Пустое состояние: мягкая иконка категории и кнопка создания.
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: AppTheme.colorsOf(context).surfaceSoft,
+                borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+              ),
+              child: Icon(
+                Icons.category_outlined,
+                size: 34,
+                color: AppTheme.mutedTextOf(context),
+              ),
+            ),
             const SizedBox(height: 12),
             Text(
-              'Нет категорий',
-              style: Theme.of(
-                context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+              strings.isRu ? 'Нет категорий' : 'No categories',
+              style: Theme.of(context).textTheme.bodyLarge,
             ),
             const SizedBox(height: 8),
-            TextButton.icon(
+            FilledButton.tonalIcon(
+              // Переход к экрану управления категориями.
               onPressed: () => _navigateToManage(context),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Создать'),
+              label: Text(strings.isRu ? 'Создать' : 'Create'),
             ),
           ],
         ),
@@ -98,22 +99,22 @@ class CategoryPicker extends ConsumerWidget {
 
     switch (mode) {
       case CategoryPickerMode.grid:
-        return _buildGrid(context, hierarchy);
+        return _buildGrid(context, ref, roots);
       case CategoryPickerMode.list:
-        return _buildList(context, hierarchy);
+        return _buildList(context, ref, roots);
       case CategoryPickerMode.compact:
-        return _buildCompact(context, hierarchy);
+        return _buildCompact(context);
     }
   }
 
-  // ============================================================================
-  // 📊 GRID MODE (основной — как в банковских приложениях)
-  // ============================================================================
   Widget _buildGrid(
     BuildContext context,
-    Map<CategoryModel, List<CategoryModel>> hierarchy,
+    WidgetRef ref,
+    List<CategoryModel> roots,
   ) {
     return GridView.builder(
+      // Сетка используется на экране добавления операции: три категории в ряд
+      // дают быстрый выбор большим пальцем.
       padding: const EdgeInsets.all(8),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
@@ -121,122 +122,173 @@ class CategoryPicker extends ConsumerWidget {
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
-      itemCount: hierarchy.length,
+      itemCount: roots.length,
       itemBuilder: (context, index) {
-        final root = hierarchy.keys.elementAt(index);
-        final subs = hierarchy[root] ?? [];
+        final root = roots[index];
         final isSelected = selectedCategory?.id == root.id;
 
-        return CategoryTile(
-          category: root,
-          isSelected: isSelected,
-          hasSubcategories: subs.isNotEmpty,
-          onTap: () {
-            if (subs.isNotEmpty && showSubcategories) {
-              _showSubcategoriesBottomSheet(context, root, subs);
-            } else if (onSelected != null) {
-              onSelected!(root);
-            }
-          },
-          onLongPress: subs.isNotEmpty && showSubcategories
-              ? () => _showSubcategoriesBottomSheet(context, root, subs)
-              : null,
-        );
-      },
-    );
-  }
+        return Consumer(
+          builder: (context, ref, _) {
+            final subsAsync = ref.watch(subcategoriesProvider(root.id));
+            final hasSubcategories =
+                (subsAsync.valueOrNull ?? const <CategoryModel>[]).isNotEmpty;
 
-  // ============================================================================
-  // 📋 LIST MODE (для фильтров и аналитики)
-  // ============================================================================
-  Widget _buildList(
-    BuildContext context,
-    Map<CategoryModel, List<CategoryModel>> hierarchy,
-  ) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: hierarchy.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, index) {
-        final root = hierarchy.keys.elementAt(index);
-        final subs = hierarchy[root] ?? [];
-        final isSelected = selectedCategory?.id == root.id;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ListTile(
-              leading: CategoryIcon(category: root, size: 24),
-              title: Text(root.name),
-              trailing: isSelected
-                  ? Icon(Icons.check_circle, color: AppTheme.primaryColor)
-                  : subs.isNotEmpty
-                  ? Icon(Icons.chevron_right, color: Colors.grey)
-                  : null,
-              onTap: () {
+            return CategoryTile(
+              category: root,
+              isSelected: isSelected,
+              hasSubcategories: hasSubcategories,
+              onTap: () async {
+                // Если у основной категории есть подкатегории, открываем
+                // нижний лист; иначе выбираем категорию сразу.
+                final subs = hasSubcategories
+                    ? await ref.read(subcategoriesProvider(root.id).future)
+                    : const <CategoryModel>[];
                 if (subs.isNotEmpty && showSubcategories) {
-                  _showSubcategoriesBottomSheet(context, root, subs);
+                  _showSubcategoriesBottomSheet(context, root);
                 } else if (onSelected != null) {
                   onSelected!(root);
                 }
               },
-            ),
-            // 🔹 Быстрый показ подкатегорий инлайн (опционально)
-            if (subs.isNotEmpty && showSubcategories)
-              Padding(
-                padding: const EdgeInsets.only(left: 56, bottom: 8),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: subs.map((sub) {
-                    final isSubSelected = selectedCategory?.id == sub.id;
-                    return FilterChip(
-                      label: Text(
-                        sub.name,
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      selected: isSubSelected,
-                      onSelected: (val) {
-                        if (val && onSelected != null) onSelected!(sub);
-                      },
-                      avatar: CategoryIcon(category: sub, size: 16),
-                      backgroundColor: sub.colorValue.withOpacity(0.1),
-                      selectedColor: sub.colorValue.withOpacity(0.2),
-                      checkmarkColor: sub.colorValue,
-                    );
-                  }).toList(),
-                ),
-              ),
-          ],
+              onLongPress: hasSubcategories && showSubcategories
+                  ? () => _showSubcategoriesBottomSheet(context, root)
+                  : null,
+            );
+          },
         );
       },
     );
   }
 
-  // ============================================================================
-  // 🎯 COMPACT MODE (для отображения выбранной категории)
-  // ============================================================================
-  Widget _buildCompact(
+  Widget _buildList(
     BuildContext context,
-    Map<CategoryModel, List<CategoryModel>> hierarchy,
+    WidgetRef ref,
+    List<CategoryModel> roots,
   ) {
+    final colors = AppTheme.colorsOf(context);
+
+    return ListView.separated(
+      // Списочный режим удобен в длинных формах и показывает подкатегории
+      // сразу под родительской категорией.
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: roots.length,
+      separatorBuilder: (_, __) => Divider(height: 1, color: colors.border),
+      itemBuilder: (context, index) {
+        final root = roots[index];
+        final isSelected = selectedCategory?.id == root.id;
+
+        return Consumer(
+          builder: (context, ref, _) {
+            final subsAsync = ref.watch(subcategoriesProvider(root.id));
+            final subs = subsAsync.valueOrNull ?? const <CategoryModel>[];
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  leading: CategoryIcon(category: root, size: 24),
+                  title: Text(root.name),
+                  subtitle: root.aiTag?.trim().isNotEmpty == true
+                      ? Text(
+                          'AI: ${root.aiTag}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.mutedTextOf(context)),
+                        )
+                      : null,
+                  trailing: isSelected
+                      ? Icon(Icons.check_circle, color: colors.primary)
+                      : subs.isNotEmpty
+                      ? Icon(
+                          Icons.chevron_right_rounded,
+                          color: AppTheme.mutedTextOf(context),
+                        )
+                      : null,
+                  onTap: () {
+                    if (subs.isNotEmpty && showSubcategories) {
+                      _showSubcategoriesBottomSheet(context, root);
+                    } else if (onSelected != null) {
+                      onSelected!(root);
+                    }
+                  },
+                ),
+                if (subsAsync.isLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 56, bottom: 8),
+                    child: SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else if (subs.isNotEmpty && showSubcategories)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 56,
+                      right: 16,
+                      bottom: 12,
+                    ),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: subs.map((sub) {
+                        final isSubSelected = selectedCategory?.id == sub.id;
+                        return FilterChip(
+                          label: Text(
+                            sub.name,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          selected: isSubSelected,
+                          onSelected: (value) {
+                            if (value && onSelected != null) onSelected!(sub);
+                          },
+                          avatar: CategoryIcon(category: sub, size: 16),
+                          backgroundColor: sub.colorValue.withOpacity(0.10),
+                          selectedColor: sub.colorValue.withOpacity(0.18),
+                          checkmarkColor: sub.colorValue,
+                          side: BorderSide(
+                            color: isSubSelected
+                                ? sub.colorValue.withOpacity(0.5)
+                                : colors.border,
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildCompact(BuildContext context) {
+    final strings = AppStrings.of(context);
+    final colors = AppTheme.colorsOf(context);
+
     if (selectedCategory == null) {
       return GestureDetector(
         onTap: () => _navigateToManage(context),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
-            borderRadius: BorderRadius.circular(12),
+            color: colors.surface,
+            border: Border.all(color: colors.border),
+            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.category_outlined, color: Colors.grey, size: 20),
+              Icon(
+                Icons.category_outlined,
+                color: AppTheme.mutedTextOf(context),
+                size: 20,
+              ),
               const SizedBox(width: 8),
               Text(
-                'Выберите категорию',
-                style: TextStyle(color: Colors.grey[600]),
+                strings.isRu ? 'Выберите категорию' : 'Choose a category',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppTheme.mutedTextOf(context),
+                ),
               ),
             ],
           ),
@@ -249,10 +301,10 @@ class CategoryPicker extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: selectedCategory!.colorValue.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
+          color: selectedCategory!.colorValue.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
           border: Border.all(
-            color: selectedCategory!.colorValue.withOpacity(0.3),
+            color: selectedCategory!.colorValue.withOpacity(0.28),
           ),
         ),
         child: Row(
@@ -260,16 +312,23 @@ class CategoryPicker extends ConsumerWidget {
           children: [
             CategoryIcon(category: selectedCategory!, size: 20),
             const SizedBox(width: 8),
-            Text(
-              selectedCategory!.name,
-              style: TextStyle(
-                color: selectedCategory!.colorValue,
-                fontWeight: FontWeight.w500,
+            Flexible(
+              child: Text(
+                selectedCategory!.name,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: selectedCategory!.colorValue,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             if (onSelected != null) ...[
               const SizedBox(width: 8),
-              Icon(Icons.edit_outlined, size: 16, color: Colors.grey),
+              Icon(
+                Icons.edit_outlined,
+                size: 16,
+                color: AppTheme.mutedTextOf(context),
+              ),
             ],
           ],
         ),
@@ -277,71 +336,120 @@ class CategoryPicker extends ConsumerWidget {
     );
   }
 
-  // ============================================================================
-  // 🔽 BOTTOM SHEET: выбор подкатегории
-  // ============================================================================
-  void _showSubcategoriesBottomSheet(
-    BuildContext context,
-    CategoryModel root,
-    List<CategoryModel> subcategories,
-  ) {
+  void _showSubcategoriesBottomSheet(BuildContext context, CategoryModel root) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.8,
-        builder: (_, controller) => Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              // Заголовок
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(color: Colors.grey.shade200),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    CategoryIcon(category: root, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            root.name,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            'Выберите подкатегорию',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(ctx),
-                    ),
-                  ],
-                ),
-              ),
+      builder: (ctx) => _SubcategoriesSheet(
+        root: root,
+        selectedCategory: selectedCategory,
+        onSelected: onSelected,
+      ),
+    );
+  }
 
-              // Список подкатегорий
-              Expanded(
-                child: ListView.separated(
+  void _navigateToManage(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const CategoriesScreen(),
+        settings: RouteSettings(arguments: isExpense),
+      ),
+    );
+  }
+}
+
+class _SubcategoriesSheet extends ConsumerWidget {
+  const _SubcategoriesSheet({
+    required this.root,
+    required this.selectedCategory,
+    required this.onSelected,
+  });
+
+  final CategoryModel root;
+  final CategoryModel? selectedCategory;
+  final OnCategorySelected? onSelected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = AppStrings.of(context);
+    final colors = AppTheme.colorsOf(context);
+    final subsAsync = ref.watch(subcategoriesProvider(root.id));
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.56,
+      minChildSize: 0.34,
+      maxChildSize: 0.86,
+      builder: (_, controller) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(AppTheme.radiusLg),
+          ),
+          border: Border.all(color: colors.border),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 48,
+              height: 5,
+              decoration: BoxDecoration(
+                color: colors.border,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 14),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: colors.border)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: root.colorValue.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    ),
+                    child: CategoryIcon(category: root, size: 24),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          root.name,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          strings.isRu
+                              ? 'Выберите подкатегорию или основную категорию'
+                              : 'Choose a subcategory or the main category',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.mutedTextOf(context)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: subsAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator.adaptive()),
+                error: (err, _) => Center(child: Text('Error: $err')),
+                data: (subcategories) => ListView.separated(
                   controller: controller,
                   padding: const EdgeInsets.all(16),
                   itemCount: subcategories.length,
@@ -354,34 +462,61 @@ class CategoryPicker extends ConsumerWidget {
                       color: Colors.transparent,
                       child: InkWell(
                         onTap: () {
+                          Navigator.pop(context);
                           if (onSelected != null) onSelected!(sub);
-                          Navigator.pop(ctx);
                         },
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
                         child: Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? sub.colorValue.withOpacity(0.15)
-                                : Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: isSelected
-                                ? Border.all(color: sub.colorValue, width: 2)
-                                : null,
+                                ? sub.colorValue.withOpacity(0.18)
+                                : colors.surfaceSoft,
+                            borderRadius: BorderRadius.circular(
+                              AppTheme.radiusMd,
+                            ),
+                            border: Border.all(
+                              color: isSelected
+                                  ? sub.colorValue.withOpacity(0.56)
+                                  : colors.border,
+                              width: isSelected ? 2 : 1,
+                            ),
                           ),
                           child: Row(
                             children: [
                               CategoryIcon(category: sub, size: 28),
-                              const SizedBox(width: 16),
+                              const SizedBox(width: 14),
                               Expanded(
-                                child: Text(
-                                  sub.name,
-                                  style: Theme.of(context).textTheme.bodyLarge
-                                      ?.copyWith(
-                                        fontWeight: isSelected
-                                            ? FontWeight.w600
-                                            : FontWeight.normal,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      sub.name,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            fontWeight: isSelected
+                                                ? FontWeight.w700
+                                                : FontWeight.w600,
+                                          ),
+                                    ),
+                                    if (sub.aiTag?.trim().isNotEmpty ==
+                                        true) ...[
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'AI: ${sub.aiTag}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: AppTheme.mutedTextOf(
+                                                context,
+                                              ),
+                                            ),
                                       ),
+                                    ],
+                                  ],
                                 ),
                               ),
                               if (isSelected)
@@ -394,44 +529,34 @@ class CategoryPicker extends ConsumerWidget {
                   },
                 ),
               ),
-
-              // Кнопка "Выбрать корневую"
-              if (onSelected != null)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(color: Colors.grey.shade200),
-                    ),
-                  ),
+            ),
+            if (onSelected != null)
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                   child: OutlinedButton.icon(
                     onPressed: () {
+                      Navigator.pop(context);
                       onSelected!(root);
-                      Navigator.pop(ctx);
                     },
-                    icon: Icon(Icons.arrow_back, size: 18),
-                    label: const Text('Выбрать основную категорию'),
+                    icon: const Icon(
+                      Icons.subdirectory_arrow_left_rounded,
+                      size: 18,
+                    ),
+                    label: Text(
+                      strings.isRu
+                          ? 'Выбрать основную категорию'
+                          : 'Choose main category',
+                    ),
                     style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
+                      minimumSize: const Size(double.infinity, 50),
                     ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
-      ),
-    );
-  }
-
-  // ============================================================================
-  // 🔧 Навигация к управлению категориями
-  // ============================================================================
-  void _navigateToManage(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const CategoriesScreen(),
-        settings: RouteSettings(arguments: isExpense),
       ),
     );
   }

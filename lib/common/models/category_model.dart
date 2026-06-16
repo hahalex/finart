@@ -1,31 +1,12 @@
+// Файл: lib/common/models/category_model.dart.
+// Назначение: описывает доменные модели и вычисления, которыми пользуются экраны и сервисы.
+
 import 'package:flutter/material.dart';
 
-/// Модель категории с поддержкой подкатегорий, цветов и AI-тегов
+import '../utils/app_theme.dart';
+
 class CategoryModel {
-  final String id;
-  final String name;
-  final bool isExpense;
-
-  /// 🔹 Хранится как int (codePoint), конвертируется в IconData при необходимости
-  final int iconCode;
-
-  /// 🔹 NEW: Родительская категория (для подкатегорий)
-  final String? parentId;
-
-  /// 🔹 NEW: Цвет в формате 0xFFRRGGBB
-  final int color;
-
-  /// 🔹 NEW: Пользовательская категория (дефолтные = false)
-  final bool isCustom;
-
-  /// 🔹 NEW: Архивная (мягкое удаление)
-  final bool isArchived;
-
-  /// 🔹 NEW: Порядок сортировки
-  final int order;
-
-  /// 🔹 NEW: AI-тег для аналитики
-  final String? aiTag;
+  static const _unset = Object();
 
   const CategoryModel({
     required this.id,
@@ -40,46 +21,58 @@ class CategoryModel {
     this.aiTag,
   });
 
-  /// ✅ Геттер: является ли подкатегорией
+  final String id;
+  final String name;
+  final bool isExpense;
+  final int iconCode;
+  final String? parentId;
+  final int color;
+  final bool isCustom;
+  final bool isArchived;
+  final int order;
+  final String? aiTag;
+
   bool get isSubcategory => parentId != null;
 
-  /// ✅ Геттер: конвертация в IconData (Material Icons)
-  IconData get iconData => IconData(iconCode, fontFamily: 'MaterialIcons');
+  IconData get iconData {
+    for (final icon in AppTheme.categoryPresetIcons) {
+      if (icon.codePoint == iconCode) return icon;
+    }
+    return Icons.category_outlined;
+  }
 
-  /// ✅ Геттер: конвертация в Color
   Color get colorValue => Color(color);
 
-  /// ✅ copyWith для неизменяемых обновлений
   CategoryModel copyWith({
     String? name,
     int? iconCode,
     int? color,
-    String? parentId,
+    Object? parentId = _unset,
     bool? isCustom,
     bool? isArchived,
     int? order,
-    String? aiTag,
+    Object? aiTag = _unset,
   }) {
     return CategoryModel(
-      id: id, // id неизменяем
+      id: id,
       name: name ?? this.name,
       iconCode: iconCode ?? this.iconCode,
       isExpense: isExpense,
-      parentId: parentId ?? this.parentId,
+      parentId: identical(parentId, _unset)
+          ? this.parentId
+          : parentId as String?,
       color: color ?? this.color,
       isCustom: isCustom ?? this.isCustom,
       isArchived: isArchived ?? this.isArchived,
       order: order ?? this.order,
-      aiTag: aiTag ?? this.aiTag,
+      aiTag: identical(aiTag, _unset) ? this.aiTag : aiTag as String?,
     );
   }
 
-  /// ✅ Для отладки
   @override
   String toString() =>
       'CategoryModel(id: $id, name: $name, isExpense: $isExpense)';
 
-  /// ✅ Для сравнения в списках
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

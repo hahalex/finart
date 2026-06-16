@@ -1,3 +1,6 @@
+// Файл: lib/common/models/category_prediction.dart.
+// Назначение: описывает доменные модели и вычисления, которыми пользуются экраны и сервисы.
+
 class CategoryPrediction {
   final String categoryId;
   final double confidence;

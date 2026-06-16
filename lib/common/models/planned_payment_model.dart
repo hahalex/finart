@@ -1,22 +1,17 @@
-/// Модель запланированного платежа (доход или расход в будущем)
-class PlannedPaymentModel {
-  final String id;
-  final String? userId;
-  final String title;
-  final double amount;
-  final String categoryId;
-  final bool isExpense;
-  final DateTime startDate;
-  final String recurrence; // 'none', 'daily', 'weekly', 'monthly', 'yearly'
-  final bool isActive;
-  final DateTime createdAt;
+// Файл: lib/common/models/planned_payment_model.dart.
+// Назначение: описывает доменные модели и вычисления, которыми пользуются экраны и сервисы.
 
+import '../utils/recurrence_rule.dart';
+
+class PlannedPaymentModel {
   PlannedPaymentModel({
     required this.id,
     this.userId,
     required this.title,
     required this.amount,
     required this.categoryId,
+    this.accountId,
+    this.paymentType = PlannedPaymentType.standard,
     required this.isExpense,
     required this.startDate,
     required this.recurrence,
@@ -24,29 +19,38 @@ class PlannedPaymentModel {
     required this.createdAt,
   });
 
-  /// Вычисляет следующую дату платежа на основе периодичности
+  final String id;
+  final String? userId;
+  final String title;
+  final double amount;
+  final String categoryId;
+  final String? accountId;
+  final PlannedPaymentType paymentType;
+  final bool isExpense;
+  final DateTime startDate;
+  final String recurrence;
+  final bool isActive;
+  final DateTime createdAt;
+
   DateTime getNextPaymentDate() {
-    switch (recurrence) {
-      case 'daily':
-        return startDate.add(const Duration(days: 1));
-      case 'weekly':
-        return startDate.add(const Duration(days: 7));
-      case 'monthly':
-        return DateTime(startDate.year, startDate.month + 1, startDate.day);
-      case 'yearly':
-        return DateTime(startDate.year + 1, startDate.month, startDate.day);
-      default:
-        return startDate;
-    }
+    return RecurrenceRule.parse(recurrence).nextAfter(startDate);
   }
 
-  /// Создаёт копию модели с изменёнными полями
+  DateTime getNextOccurrenceOnOrAfter(DateTime from) {
+    return RecurrenceRule.parse(
+      recurrence,
+    ).firstOccurrenceOnOrAfter(startDate, from);
+  }
+
   PlannedPaymentModel copyWith({
     String? id,
     String? userId,
     String? title,
     double? amount,
     String? categoryId,
+    String? accountId,
+    bool clearAccountId = false,
+    PlannedPaymentType? paymentType,
     bool? isExpense,
     DateTime? startDate,
     String? recurrence,
@@ -59,6 +63,8 @@ class PlannedPaymentModel {
       title: title ?? this.title,
       amount: amount ?? this.amount,
       categoryId: categoryId ?? this.categoryId,
+      accountId: clearAccountId ? null : accountId ?? this.accountId,
+      paymentType: paymentType ?? this.paymentType,
       isExpense: isExpense ?? this.isExpense,
       startDate: startDate ?? this.startDate,
       recurrence: recurrence ?? this.recurrence,
@@ -69,4 +75,11 @@ class PlannedPaymentModel {
 
   @override
   String toString() => 'PlannedPaymentModel(title: $title, amount: $amount)';
+}
+
+enum PlannedPaymentType {
+  standard,
+  transfer;
+
+  bool get isTransfer => this == PlannedPaymentType.transfer;
 }

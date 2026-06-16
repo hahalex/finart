@@ -1,3 +1,6 @@
+// Файл: lib/common/repositories/test_planned_repository.dart.
+// Назначение: изолирует доступ к данным и операции чтения/записи в локальное хранилище.
+
 import '../database/app_database.dart';
 import '../models/planned_payment_model.dart';
 import 'planned_repository.dart';

@@ -1,34 +1,65 @@
+// Файл: lib/features/categories/categories_screen.dart.
+// Назначение: строит пользовательский экран или диалог соответствующего раздела приложения.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../common/localization/app_strings.dart';
 import '../../common/models/category_model.dart';
 import '../../common/providers/categories_provider.dart';
-import '../../common/widgets/category_icon.dart';
 import '../../common/utils/app_theme.dart';
+import '../../common/widgets/category_icon.dart';
 import 'category_form_dialog.dart';
 
-// TODO убрать все подкатегории - предупреждуения о том что нужно выбрать родительскую категорию достаточно
+final categorySearchQueryProvider = StateProvider.autoDispose<String>(
+  (ref) => '',
+);
 
-// ============================================================================
-// 📋 ЭКРАН: Управление категориями
-// ============================================================================
-
-class CategoriesScreen extends ConsumerWidget {
+class CategoriesScreen extends ConsumerStatefulWidget {
   const CategoriesScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CategoriesScreen> createState() => _CategoriesScreenState();
+}
+
+class _CategoriesScreenState extends ConsumerState<CategoriesScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  final Set<String> _expanded = <String>{};
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = AppStrings.of(context);
     final isExpense =
         ModalRoute.of(context)?.settings.arguments as bool? ?? true;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isExpense ? 'Категории расходов' : 'Категории доходов'),
+        title: Text(
+          isExpense
+              ? (strings.isRu ? 'Категории расходов' : 'Expense categories')
+              : (strings.isRu ? 'Категории доходов' : 'Income categories'),
+        ),
         centerTitle: true,
         actions: [
-          // 🔹 Переключатель: расходы/доходы
           IconButton(
-            icon: Icon(isExpense ? Icons.trending_down : Icons.trending_up),
+            // Верхняя правая кнопка переключает экран между расходными
+            // и доходными категориями без возврата назад.
+            icon: Icon(
+              isExpense
+                  ? Icons.trending_down_rounded
+                  : Icons.trending_up_rounded,
+            ),
+            tooltip: isExpense
+                ? (strings.isRu ? 'Показать доходы' : 'Show income categories')
+                : (strings.isRu
+                      ? 'Показать расходы'
+                      : 'Show expense categories'),
             onPressed: () {
               Navigator.pushReplacement(
                 context,
@@ -38,556 +69,476 @@ class CategoriesScreen extends ConsumerWidget {
                 ),
               );
             },
-            tooltip: isExpense ? 'Показать доходы' : 'Показать расходы',
           ),
         ],
       ),
       body: Column(
         children: [
-          // 🔹 Поиск
-          _buildSearchBar(context, ref, isExpense),
-
-          // 🔹 Секция с «осиротевшими» подкатегориями
-          _buildOrphanedSubcategoriesSection(context, ref, isExpense),
-
-          // 🔹 Кнопка "Все подкатегории"
-          _buildSubcategoriesSectionButton(context, ref, isExpense),
-
-          // 🔹 Основной список категорий
-          Expanded(child: _buildCategoriesList(context, ref, isExpense)),
+          _buildSearchBar(context, ref, strings),
+          Expanded(
+            child: _buildCategoriesList(context, ref, isExpense, strings),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        // Нижняя кнопка создает новую основную категорию текущего типа.
         onPressed: () => _showCategoryForm(context, ref, isExpense, null),
         icon: const Icon(Icons.add),
-        label: const Text('Добавить'),
+        label: Text(strings.add),
       ),
     );
   }
 
-  /// 🔍 Поиск по категориям
-  Widget _buildSearchBar(BuildContext context, WidgetRef ref, bool isExpense) {
+  Widget _buildSearchBar(
+    BuildContext context,
+    WidgetRef ref,
+    AppStrings strings,
+  ) {
+    final colors = AppTheme.colorsOf(context);
+
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(
+        AppTheme.pagePadding,
+        AppTheme.pagePadding,
+        AppTheme.pagePadding,
+        8,
+      ),
       child: TextField(
+        // Поиск фильтрует категории по названию и AI-тегу.
+        controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Поиск категории...',
-          prefixIcon: const Icon(Icons.search, size: 20),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
-          isDense: true,
+          hintText: strings.isRu
+              ? 'Поиск категории или AI-тега...'
+              : 'Search category or AI tag...',
+          prefixIcon: const Icon(Icons.search_rounded, size: 20),
+          suffixIcon: _searchController.text.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close_rounded),
+                  onPressed: () {
+                    _searchController.clear();
+                    ref.read(categorySearchQueryProvider.notifier).state = '';
+                    setState(() {});
+                  },
+                ),
+          filled: true,
+          fillColor: colors.surface,
         ),
         onChanged: (query) {
-          // TODO: реализовать фильтрацию через провайдер
+          ref.read(categorySearchQueryProvider.notifier).state = query.trim();
+          setState(() {});
         },
       ),
     );
   }
 
-  /// 📋 Список категорий
   Widget _buildCategoriesList(
     BuildContext context,
     WidgetRef ref,
     bool isExpense,
+    AppStrings strings,
   ) {
     final hierarchyAsync = ref.watch(categoriesHierarchyProvider(isExpense));
+    final searchQuery = ref.watch(categorySearchQueryProvider).toLowerCase();
 
     return hierarchyAsync.when(
       loading: () => const Center(child: CircularProgressIndicator.adaptive()),
-      error: (err, _) => Center(
-        child: Text(
-          'Ошибка: $err',
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-        ),
-      ),
+      error: (err, _) => Center(child: Text('Error: $err')),
       data: (hierarchy) {
-        if (hierarchy.isEmpty) {
-          return _buildEmptyState(context, ref, isExpense);
+        final visibleRoots = _filterHierarchy(hierarchy, searchQuery);
+        if (visibleRoots.isEmpty) {
+          return _buildEmptyState(context, ref, isExpense, strings);
         }
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          itemCount: hierarchy.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+
+        return ReorderableListView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          buildDefaultDragHandles: false,
+          itemCount: visibleRoots.length,
+          onReorder: searchQuery.isNotEmpty
+              ? (_, __) {}
+              : (oldIndex, newIndex) =>
+                    _reorderRoots(ref, visibleRoots, oldIndex, newIndex),
           itemBuilder: (context, index) {
-            final root = hierarchy.keys.elementAt(index);
-            final subs = hierarchy[root] ?? [];
-            return _buildCategoryItem(context, ref, root, subs, isExpense);
+            final root = visibleRoots[index];
+            final subs = hierarchy[root] ?? const <CategoryModel>[];
+            final filteredSubs = searchQuery.isEmpty
+                ? subs
+                : subs.where((sub) => _matches(sub, searchQuery)).toList();
+            // В обычном режиме подкатегории видны только после раскрытия
+            // родителя; при поиске показываем совпавшие подкатегории сразу.
+            final shouldShowSubcategories =
+                _expanded.contains(root.id) ||
+                (searchQuery.isNotEmpty && filteredSubs.isNotEmpty);
+
+            return Container(
+              key: ValueKey(root.id),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: AppTheme.surfaceCardDecoration(
+                context,
+                radius: AppTheme.radiusLg,
+                color: root.colorValue.withOpacity(0.08),
+                borderColor: root.colorValue.withOpacity(0.28),
+              ),
+              child: Column(
+                children: [
+                  _buildRootTile(
+                    context,
+                    ref,
+                    root,
+                    filteredSubs,
+                    isExpense,
+                    strings,
+                    reorderIndex: index,
+                    showReorderHandle: searchQuery.isEmpty,
+                  ),
+                  if (shouldShowSubcategories)
+                    _buildSubcategoriesSection(
+                      context,
+                      ref,
+                      root,
+                      filteredSubs,
+                      strings,
+                      searchQuery.isEmpty,
+                    ),
+                ],
+              ),
+            );
           },
         );
       },
     );
   }
 
-  /// 🔹 Секция: Подкатегории без назначенного родителя
-  Widget _buildOrphanedSubcategoriesSection(
-    BuildContext context,
-    WidgetRef ref,
-    bool isExpense,
+  List<CategoryModel> _filterHierarchy(
+    Map<CategoryModel, List<CategoryModel>> hierarchy,
+    String searchQuery,
   ) {
-    final orphansAsync = ref.watch(
-      FutureProvider<List<CategoryModel>>((ref) async {
-        final repo = ref.watch(categoriesRepositoryProvider);
-        return repo.getOrphanedSubcategories(isExpense);
-      }),
-    );
+    if (searchQuery.isEmpty) {
+      return hierarchy.keys.toList()
+        ..sort((a, b) => a.order.compareTo(b.order));
+    }
 
-    return orphansAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (orphans) {
-        if (orphans.isEmpty) return const SizedBox.shrink();
+    final roots = <CategoryModel>[];
+    for (final entry in hierarchy.entries) {
+      final root = entry.key;
+      final subs = entry.value;
 
-        return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.amber.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.amber.shade300),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: Colors.amber[700],
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Подкатегории без родителя (${orphans.length})',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Colors.amber[800],
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              ...orphans.map(
-                (sub) =>
-                    _buildOrphanedSubcategoryTile(context, ref, sub, isExpense),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  /// 🔹 Секция: Все подкатегории (кнопка для перехода к полному списку)
-  Widget _buildSubcategoriesSectionButton(
-    BuildContext context,
-    WidgetRef ref,
-    bool isExpense,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: OutlinedButton.icon(
-        onPressed: () => _navigateToAllSubcategories(context, ref, isExpense),
-        icon: const Icon(Icons.subdirectory_arrow_right, size: 18),
-        label: const Text('Все подкатегории'),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        ),
-      ),
-    );
-  }
-
-  /// 🔹 Навигация к списку всех подкатегорий
-  void _navigateToAllSubcategories(
-    BuildContext context,
-    WidgetRef ref,
-    bool isExpense,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        builder: (_, scrollController) => AllSubcategoriesSheet(
-          isExpense: isExpense,
-          onClose: () => Navigator.pop(ctx),
-          scrollController: scrollController,
-        ),
-      ),
-    );
-  }
-
-  /// 🔹 Плитка «осиротевшей» подкатегории
-  Widget _buildOrphanedSubcategoryTile(
-    BuildContext context,
-    WidgetRef ref,
-    CategoryModel subcategory,
-    bool isExpense,
-  ) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: subcategory.colorValue.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: subcategory.colorValue.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(subcategory.iconData, size: 24, color: subcategory.colorValue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  subcategory.name,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                Text(
-                  'Нет родителя',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, size: 20),
-            onSelected: (value) => _handleOrphanAction(
-              context,
-              ref,
-              subcategory,
-              value,
-              isExpense,
-            ),
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'assign_parent',
-                child: Text('🔗 Назначить родителя'),
-              ),
-              const PopupMenuItem(
-                value: 'make_root',
-                child: Text('🌱 Сделать корневой'),
-              ),
-              const PopupMenuItem(
-                value: 'edit',
-                child: Text('✏️ Редактировать'),
-              ),
-              const PopupMenuItem(value: 'delete', child: Text('🗑️ Удалить')),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 🔹 Обработка действий для «осиротевших» подкатегорий
-  void _handleOrphanAction(
-    BuildContext context,
-    WidgetRef ref,
-    CategoryModel subcategory,
-    String action,
-    bool isExpense,
-  ) async {
-    final repo = ref.read(categoriesRepositoryProvider);
-
-    try {
-      switch (action) {
-        case 'assign_parent':
-          await _showAssignParentDialog(context, ref, subcategory, isExpense);
-          break;
-        case 'make_root':
-          await repo.updateCategory(subcategory.copyWith(parentId: null));
-          ref.invalidate(categoriesHierarchyProvider);
-          ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
-          break;
-        case 'edit':
-          _showCategoryForm(context, ref, isExpense, subcategory);
-          break;
-        case 'delete':
-          final confirmed = await _showDeleteConfirm(context, subcategory);
-          if (confirmed) {
-            await repo.deleteCategory(subcategory.id);
-            ref.invalidate(categoriesHierarchyProvider);
-            ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
-          }
-          break;
+      final rootMatches = _matches(root, searchQuery);
+      final subMatches = subs.any((sub) => _matches(sub, searchQuery));
+      if (rootMatches || subMatches) {
+        roots.add(root);
+        _expanded.add(root.id);
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка: $e'),
-          backgroundColor: AppTheme.expenseColor,
-        ),
-      );
-    }
-  }
-
-  /// 🔹 Диалог назначения родителя
-  Future<void> _showAssignParentDialog(
-    BuildContext context,
-    WidgetRef ref,
-    CategoryModel subcategory,
-    bool isExpense,
-  ) async {
-    final roots = await ref
-        .read(categoriesRepositoryProvider)
-        .getRootCategories(isExpense);
-
-    if (roots.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Сначала создайте корневую категорию')),
-      );
-      return;
     }
 
-    CategoryModel? selectedParent;
-
-    await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Назначить родителя'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: roots.length,
-            separatorBuilder: (_, __) => const Divider(),
-            itemBuilder: (context, index) {
-              final root = roots[index];
-              final isSelected = selectedParent?.id == root.id;
-              return ListTile(
-                leading: Icon(root.iconData, color: root.colorValue),
-                title: Text(root.name),
-                trailing: isSelected
-                    ? const Icon(Icons.check_circle, color: Colors.green)
-                    : null,
-                onTap: () => selectedParent = root,
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Отмена'),
-          ),
-          ElevatedButton(
-            onPressed: selectedParent == null
-                ? null
-                : () async {
-                    final repo = ref.read(categoriesRepositoryProvider);
-                    await repo.updateCategory(
-                      subcategory.copyWith(parentId: selectedParent!.id),
-                    );
-                    ref.invalidate(categoriesHierarchyProvider);
-                    ref
-                        .read(categoriesCacheInvalidatorProvider.notifier)
-                        .state++;
-                    if (context.mounted) Navigator.pop(ctx);
-                  },
-            child: const Text('Сохранить'),
-          ),
-        ],
-      ),
-    );
+    roots.sort((a, b) => a.order.compareTo(b.order));
+    return roots;
   }
 
-  /// 🧱 Карточка категории с подкатегориями
-  Widget _buildCategoryItem(
+  bool _matches(CategoryModel category, String query) {
+    return category.name.toLowerCase().contains(query) ||
+        (category.aiTag?.toLowerCase().contains(query) ?? false);
+  }
+
+  Widget _buildRootTile(
     BuildContext context,
     WidgetRef ref,
     CategoryModel root,
     List<CategoryModel> subs,
     bool isExpense,
-  ) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => _showCategoryForm(context, ref, isExpense, root),
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: root.colorValue.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: root.colorValue.withOpacity(0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    AppStrings strings, {
+    required int reorderIndex,
+    required bool showReorderHandle,
+  }) {
+    final isExpanded = _expanded.contains(root.id);
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          if (isExpanded) {
+            _expanded.remove(root.id);
+          } else {
+            _expanded.add(root.id);
+          }
+        });
+      },
+      borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CategoryIcon(category: root, size: 28),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CategoryIcon(category: root, size: 28),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          root.name,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                        if (root.isCustom)
-                          Text(
-                            'Пользовательская',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                      ],
+                  Text(
+                    root.name,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (root.isArchived)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'Архив',
-                        style: TextStyle(fontSize: 11),
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subs.isEmpty
+                        ? (strings.isRu
+                              ? 'Без подкатегорий'
+                              : 'No subcategories')
+                        : (strings.isRu
+                              ? '${subs.length} подкатегорий'
+                              : '${subs.length} subcategories'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppTheme.mutedTextOf(context),
                     ),
-                  const SizedBox(width: 8),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, size: 20),
-                    onSelected: (value) =>
-                        _handleMenuAction(context, ref, root, value, isExpense),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Text('✏️ Редактировать'),
-                      ),
-                      if (!root.isArchived)
-                        const PopupMenuItem(
-                          value: 'archive',
-                          child: Text('🗄️ В архив'),
-                        ),
-                      if (root.isArchived)
-                        const PopupMenuItem(
-                          value: 'restore',
-                          child: Text('♻️ Восстановить'),
-                        ),
-                      if (root.isCustom)
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('🗑️ Удалить'),
-                        ),
-                      const PopupMenuItem(
-                        value: 'add_sub',
-                        child: Text('➕ Добавить подкатегорию'),
-                      ),
-                    ],
                   ),
+                  if (root.aiTag?.trim().isNotEmpty == true) ...[
+                    const SizedBox(height: 8),
+                    _AiTagPill(value: root.aiTag!),
+                  ],
                 ],
               ),
-              if (subs.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                const Divider(height: 1),
-                const SizedBox(height: 8),
-                ...subs.map(
-                  (sub) => _buildSubcategoryItem(context, ref, sub, isExpense),
+            ),
+            if (showReorderHandle)
+              ReorderableDragStartListener(
+                index: reorderIndex,
+                child: Icon(
+                  Icons.drag_handle_rounded,
+                  color: AppTheme.mutedTextOf(context),
                 ),
+              ),
+            PopupMenuButton<String>(
+              onSelected: (value) => _handleMenuAction(
+                context,
+                ref,
+                root,
+                value,
+                isExpense,
+                strings,
+              ),
+              itemBuilder: (context) => [
+                PopupMenuItem(value: 'edit', child: Text(strings.editCategory)),
+                PopupMenuItem(
+                  value: 'add_sub',
+                  child: Text(
+                    strings.isRu ? 'Добавить подкатегорию' : 'Add subcategory',
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'archive',
+                  child: Text(strings.isRu ? 'В архив' : 'Archive'),
+                ),
+                if (root.isCustom)
+                  PopupMenuItem(
+                    value: 'delete',
+                    child: Text(strings.isRu ? 'Удалить' : 'Delete'),
+                  ),
               ],
-            ],
-          ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              isExpanded
+                  ? Icons.expand_less_rounded
+                  : Icons.expand_more_rounded,
+              color: AppTheme.mutedTextOf(context),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  /// 🔹 Подкатегория (упрощённый вид)
-  Widget _buildSubcategoryItem(
+  Widget _buildSubcategoriesSection(
     BuildContext context,
     WidgetRef ref,
-    CategoryModel sub,
-    bool isExpense,
+    CategoryModel root,
+    List<CategoryModel> subcategories,
+    AppStrings strings,
+    bool allowReorder,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(left: 40, top: 8),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Column(
         children: [
-          CategoryIcon(category: sub, size: 20),
-          const SizedBox(width: 8),
-          Expanded(child: Text(sub.name, style: const TextStyle(fontSize: 14))),
-          if (sub.isArchived)
-            Text(
-              'архив',
-              style: TextStyle(color: Colors.grey[600], fontSize: 11),
-            ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, size: 18),
-            onSelected: (value) =>
-                _handleMenuAction(context, ref, sub, value, isExpense),
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Text('✏️ Редактировать'),
+          Divider(color: AppTheme.colorsOf(context).border),
+          if (subcategories.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  strings.isRu
+                      ? 'Подкатегорий пока нет'
+                      : 'No subcategories yet',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppTheme.mutedTextOf(context),
+                  ),
+                ),
               ),
-              if (!sub.isArchived)
-                const PopupMenuItem(
-                  value: 'archive',
-                  child: Text('🗄️ В архив'),
-                ),
-              if (sub.isArchived)
-                const PopupMenuItem(
-                  value: 'restore',
-                  child: Text('♻️ Восстановить'),
-                ),
-              if (sub.isCustom)
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Text('🗑️ Удалить'),
-                ),
-            ],
-          ),
+            )
+          else
+            ReorderableListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              buildDefaultDragHandles: false,
+              itemCount: subcategories.length,
+              onReorder: allowReorder
+                  ? (oldIndex, newIndex) => _reorderSubcategories(
+                      ref,
+                      subcategories,
+                      oldIndex,
+                      newIndex,
+                    )
+                  : (_, __) {},
+              itemBuilder: (context, index) {
+                final sub = subcategories[index];
+                return ListTile(
+                  key: ValueKey(sub.id),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  leading: CategoryIcon(category: sub, size: 20),
+                  title: Text(sub.name),
+                  subtitle: sub.aiTag?.trim().isNotEmpty == true
+                      ? Text(
+                          'AI: ${sub.aiTag}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: AppTheme.mutedTextOf(context)),
+                        )
+                      : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (allowReorder)
+                        ReorderableDragStartListener(
+                          index: index,
+                          child: Icon(
+                            Icons.drag_handle_rounded,
+                            color: AppTheme.mutedTextOf(context),
+                          ),
+                        ),
+                      PopupMenuButton<String>(
+                        onSelected: (value) => _handleSubcategoryAction(
+                          context,
+                          ref,
+                          sub,
+                          value,
+                          strings,
+                        ),
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text(strings.editCategory),
+                          ),
+                          PopupMenuItem(
+                            value: 'make_root',
+                            child: Text(
+                              strings.isRu ? 'Сделать корневой' : 'Make root',
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'archive',
+                            child: Text(strings.isRu ? 'В архив' : 'Archive'),
+                          ),
+                          if (sub.isCustom)
+                            PopupMenuItem(
+                              value: 'delete',
+                              child: Text(strings.isRu ? 'Удалить' : 'Delete'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
         ],
       ),
     );
   }
 
-  /// 🔹 Пустое состояние
-  Widget _buildEmptyState(BuildContext context, WidgetRef ref, bool isExpense) {
+  Widget _buildEmptyState(
+    BuildContext context,
+    WidgetRef ref,
+    bool isExpense,
+    AppStrings strings,
+  ) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.category_outlined, size: 64, color: Colors.grey),
-          const SizedBox(height: 16),
-          Text('Нет категорий', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Text(
-            'Создайте первую категорию',
-            style: TextStyle(color: Colors.grey[600]),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppTheme.colorsOf(context).surfaceSoft,
+              borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+            ),
+            child: Icon(
+              Icons.category_outlined,
+              size: 40,
+              color: AppTheme.mutedTextOf(context),
+            ),
           ),
           const SizedBox(height: 16),
-          ElevatedButton.icon(
+          Text(
+            strings.isRu ? 'Нет категорий' : 'No categories',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            strings.isRu
+                ? 'Создайте первую категорию'
+                : 'Create your first category',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppTheme.mutedTextOf(context),
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
             onPressed: () => _showCategoryForm(context, ref, isExpense, null),
             icon: const Icon(Icons.add),
-            label: const Text('Создать категорию'),
+            label: Text(strings.createCategory),
           ),
         ],
       ),
     );
   }
 
-  /// 🔹 Обработка действий из меню
-  void _handleMenuAction(
+  Future<void> _reorderRoots(
+    WidgetRef ref,
+    List<CategoryModel> roots,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (newIndex > oldIndex) newIndex--;
+    final next = [...roots];
+    final item = next.removeAt(oldIndex);
+    next.insert(newIndex, item);
+    await ref.read(categoriesRepositoryProvider).reorderCategories(next);
+    ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
+  }
+
+  Future<void> _reorderSubcategories(
+    WidgetRef ref,
+    List<CategoryModel> subcategories,
+    int oldIndex,
+    int newIndex,
+  ) async {
+    if (newIndex > oldIndex) newIndex--;
+    final next = [...subcategories];
+    final item = next.removeAt(oldIndex);
+    next.insert(newIndex, item);
+    await ref.read(categoriesRepositoryProvider).reorderCategories(next);
+    ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
+  }
+
+  Future<void> _handleMenuAction(
     BuildContext context,
     WidgetRef ref,
     CategoryModel category,
     String action,
     bool isExpense,
+    AppStrings strings,
   ) async {
     final repo = ref.read(categoriesRepositoryProvider);
 
@@ -596,62 +547,102 @@ class CategoriesScreen extends ConsumerWidget {
         case 'edit':
           _showCategoryForm(context, ref, isExpense, category);
           break;
-        case 'archive':
-          await repo.archiveCategory(category.id);
-          ref.invalidate(categoriesHierarchyProvider);
-          ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
-          break;
-        case 'restore':
-          await repo.updateCategory(category.copyWith(isArchived: false));
-          ref.invalidate(categoriesHierarchyProvider);
-          ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
-          break;
-        case 'delete':
-          final confirmed = await _showDeleteConfirm(context, category);
-          if (confirmed) {
-            await repo.deleteCategory(category.id);
-            ref.invalidate(categoriesHierarchyProvider);
-            ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
-          }
-          break;
         case 'add_sub':
           _showCategoryForm(context, ref, isExpense, null, parent: category);
           break;
+        case 'archive':
+          if (await _showArchiveConfirm(context, category, strings)) {
+            await repo.archiveCategory(category.id);
+          }
+          break;
+        case 'delete':
+          final confirmed = await _showDeleteConfirm(
+            context,
+            category,
+            strings,
+          );
+          if (confirmed) await repo.deleteCategory(category.id);
+          break;
       }
+
+      ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ошибка: $e'),
-          backgroundColor: AppTheme.expenseColor,
+          content: Text('Error: $e'),
+          backgroundColor: AppTheme.colorsOf(context).expense,
         ),
       );
     }
   }
 
-  /// 🔹 Подтверждение удаления
-  Future<bool> _showDeleteConfirm(
+  Future<void> _handleSubcategoryAction(
+    BuildContext context,
+    WidgetRef ref,
+    CategoryModel category,
+    String action,
+    AppStrings strings,
+  ) async {
+    final repo = ref.read(categoriesRepositoryProvider);
+
+    try {
+      switch (action) {
+        case 'edit':
+          _showCategoryForm(context, ref, category.isExpense, category);
+          return;
+        case 'make_root':
+          await repo.updateCategory(category.copyWith(parentId: null));
+          break;
+        case 'archive':
+          if (await _showArchiveConfirm(context, category, strings)) {
+            await repo.archiveCategory(category.id);
+          }
+          break;
+        case 'delete':
+          final confirmed = await _showDeleteConfirm(
+            context,
+            category,
+            strings,
+          );
+          if (confirmed) await repo.deleteCategory(category.id);
+          break;
+      }
+
+      ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppTheme.colorsOf(context).expense,
+        ),
+      );
+    }
+  }
+
+  Future<bool> _showArchiveConfirm(
     BuildContext context,
     CategoryModel category,
+    AppStrings strings,
   ) async {
     return await showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
-            title: const Text('Удалить категорию?'),
-            content: Text('«${category.name}» будет удалена безвозвратно.'),
+            title: Text(
+              strings.isRu ? 'Архивировать категорию?' : 'Archive category?',
+            ),
+            content: Text(
+              strings.isRu
+                  ? 'Категория «${category.name}» исчезнет из выбора, но останется в данных.'
+                  : 'The category "${category.name}" will disappear from selection but remain in stored data.',
+            ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Отмена'),
+                child: Text(strings.cancel),
               ),
-              ElevatedButton(
+              FilledButton.tonal(
                 onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.expenseColor,
-                ),
-                child: const Text(
-                  'Удалить',
-                  style: TextStyle(color: Colors.white),
-                ),
+                child: Text(strings.isRu ? 'В архив' : 'Archive'),
               ),
             ],
           ),
@@ -659,7 +650,40 @@ class CategoriesScreen extends ConsumerWidget {
         false;
   }
 
-  /// 🔹 Показать форму создания/редактирования
+  Future<bool> _showDeleteConfirm(
+    BuildContext context,
+    CategoryModel category,
+    AppStrings strings,
+  ) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(
+              strings.isRu ? 'Удалить категорию?' : 'Delete category?',
+            ),
+            content: Text(
+              strings.isRu
+                  ? '«${category.name}» будет удалена безвозвратно.'
+                  : '"${category.name}" will be deleted permanently.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: Text(strings.cancel),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.colorsOf(ctx).expense,
+                ),
+                child: Text(strings.isRu ? 'Удалить' : 'Delete'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   void _showCategoryForm(
     BuildContext context,
     WidgetRef ref,
@@ -669,7 +693,7 @@ class CategoriesScreen extends ConsumerWidget {
   }) {
     showDialog(
       context: context,
-      builder: (dialogContext) => CategoryFormDialog(
+      builder: (_) => CategoryFormDialog(
         isExpense: isExpense,
         category: category,
         parentCategory: parent,
@@ -680,7 +704,6 @@ class CategoriesScreen extends ConsumerWidget {
           } else {
             await repo.updateCategory(newCategory);
           }
-          ref.invalidate(categoriesHierarchyProvider);
           ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
         },
       ),
@@ -688,283 +711,28 @@ class CategoriesScreen extends ConsumerWidget {
   }
 }
 
-// ============================================================================
-// 🔽 BOTTOM SHEET: Список всех подкатегорий (ВЫНЕСЕН В ТОП-ЛЕВЕЛ)
-// ============================================================================
+class _AiTagPill extends StatelessWidget {
+  const _AiTagPill({required this.value});
 
-class AllSubcategoriesSheet extends ConsumerWidget {
-  final bool isExpense;
-  final VoidCallback onClose;
-  final ScrollController scrollController;
-
-  const AllSubcategoriesSheet({
-    super.key,
-    required this.isExpense,
-    required this.onClose,
-    required this.scrollController,
-  });
+  final String value;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final subsAsync = ref.watch(
-      FutureProvider<List<CategoryModel>>((ref) async {
-        final repo = ref.watch(categoriesRepositoryProvider);
-        return repo.getAllSubcategories(isExpense);
-      }),
-    );
-
+  Widget build(BuildContext context) {
+    final colors = AppTheme.colorsOf(context);
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: colors.border),
       ),
-      child: Column(
-        children: [
-          // Заголовок
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Все подкатегории',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        isExpense ? 'Расходы' : 'Доходы',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                    ],
-                  ),
-                ),
-                IconButton(icon: const Icon(Icons.close), onPressed: onClose),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          // Список
-          Expanded(
-            child: subsAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator.adaptive()),
-              error: (err, _) => Center(child: Text('Ошибка: $err')),
-              data: (subs) {
-                if (subs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.subdirectory_arrow_right,
-                          size: 48,
-                          color: Colors.grey,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Нет подкатегорий',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return ListView.separated(
-                  controller: scrollController,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: subs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final sub = subs[index];
-                    return _SubcategoryRow(
-                      sub: sub,
-                      isExpense: isExpense,
-                      onClose: onClose,
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// 🧱 ВИДЖЕТ: Строка подкатегории (отдельный класс для чистоты кода)
-// ============================================================================
-
-class _SubcategoryRow extends ConsumerWidget {
-  final CategoryModel sub;
-  final bool isExpense;
-  final VoidCallback onClose;
-
-  const _SubcategoryRow({
-    required this.sub,
-    required this.isExpense,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: sub.colorValue.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: sub.colorValue.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(sub.iconData, size: 24, color: sub.colorValue),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  sub.name,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                ),
-                FutureBuilder<CategoryModel?>(
-                  future: ref
-                      .read(categoriesRepositoryProvider)
-                      .getCategoryById(sub.parentId ?? ''),
-                  builder: (context, snapshot) {
-                    final parent = snapshot.data;
-                    return Text(
-                      parent != null
-                          ? 'Родитель: ${parent.name}'
-                          : 'Родитель: не найден ⚠️',
-                      style: TextStyle(
-                        color: parent != null
-                            ? Colors.grey[600]
-                            : Colors.amber[700],
-                        fontSize: 12,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert, size: 20),
-            onSelected: (value) =>
-                _handleSubAction(context, ref, sub, value, isExpense, onClose),
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Text('✏️ Редактировать'),
-              ),
-              const PopupMenuItem(
-                value: 'change_parent',
-                child: Text('🔗 Сменить родителя'),
-              ),
-              const PopupMenuItem(
-                value: 'make_root',
-                child: Text('🌱 Сделать корневой'),
-              ),
-              if (sub.isCustom)
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Text('🗑️ Удалить'),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _handleSubAction(
-    BuildContext context,
-    WidgetRef ref,
-    CategoryModel sub,
-    String action,
-    bool isExpense,
-    VoidCallback onClose,
-  ) async {
-    final repo = ref.read(categoriesRepositoryProvider);
-
-    try {
-      switch (action) {
-        case 'edit':
-          onClose(); // Закрыть шторку перед открытием диалога
-          // Используем небольшой отложенный вызов, чтобы навигация успела завершиться
-          Future.delayed(const Duration(milliseconds: 300), () {
-            // TODO: Открыть форму редактирования (нужен доступ к _showCategoryForm)
-            // Пока заглушка:
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Редактирование — в разработке')),
-            );
-          });
-          break;
-        case 'change_parent':
-          onClose();
-          Future.delayed(const Duration(milliseconds: 300), () {
-            // TODO: Показать диалог выбора родителя
-          });
-          break;
-        case 'make_root':
-          await repo.updateCategory(sub.copyWith(parentId: null));
-          ref.invalidate(categoriesHierarchyProvider);
-          ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
-          break;
-        case 'delete':
-          final confirmed = await _showDeleteConfirm(context, sub);
-          if (confirmed) {
-            await repo.deleteCategory(sub.id);
-            ref.invalidate(categoriesHierarchyProvider);
-            ref.read(categoriesCacheInvalidatorProvider.notifier).state++;
-          }
-          break;
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Ошибка: $e'),
-          backgroundColor: AppTheme.expenseColor,
+      child: Text(
+        'AI: $value',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.w600,
+          color: AppTheme.mutedTextOf(context),
         ),
-      );
-    }
-  }
-
-  /// 🔹 Локальная версия подтверждения удаления
-  Future<bool> _showDeleteConfirm(
-    BuildContext context,
-    CategoryModel category,
-  ) async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Удалить подкатегорию?'),
-            content: Text('«${category.name}» будет удалена безвозвратно.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Отмена'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.expenseColor,
-                ),
-                child: const Text(
-                  'Удалить',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+      ),
+    );
   }
 }

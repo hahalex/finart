@@ -1,29 +1,23 @@
-/// Модель финансовой операции (доход или расход)
+// Файл: lib/common/models/transaction_model.dart.
+// Назначение: описывает доменные модели и вычисления, которыми пользуются экраны и сервисы.
+
+/// Модель финансовой операции.
 class TransactionModel {
-  /// Уникальный идентификатор операции
-  final String id;
-
-  /// Сумма операции
-  final double amount;
-
-  /// Категория
-  final String categoryId;
-
-  /// Описание (необязательно)
-  final String? description;
-
-  /// Дата и время создания
-  final DateTime createdAt;
-
-  /// Расход или доход
-  final bool isExpense;
-
   TransactionModel({
     required this.id,
     required this.amount,
     required this.categoryId,
     required this.createdAt,
     required this.isExpense,
+    this.accountId,
     this.description,
   });
+
+  final String id;
+  final double amount;
+  final String categoryId;
+  final String? accountId;
+  final String? description;
+  final DateTime createdAt;
+  final bool isExpense;
 }

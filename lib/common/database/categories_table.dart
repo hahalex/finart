@@ -1,3 +1,6 @@
+// Файл: lib/common/database/categories_table.dart.
+// Назначение: описывает таблицы Drift и структуру локальной базы данных.
+
 import 'package:drift/drift.dart';
 
 class CategoriesTable extends Table {
@@ -16,8 +19,7 @@ class CategoriesTable extends Table {
   @override
   Set<Column> get primaryKey => {id};
 
-  // ✅ ИНДЕКСЫ: только raw SQL (без columns: [])
-  @override
+  // Индексы заданы raw SQL, чтобы Drift не генерировал лишние constraints.
   List<Index> get indexes => [
     Index('idx_parent', 'CREATE INDEX idx_parent ON categories (parent_id)'),
     Index(
